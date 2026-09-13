@@ -38,19 +38,19 @@ Read the current values from the Dockerfiles. Do not copy them from this
 document.
 
 ### Option 1 — variant in the repository name
-
-    ai-agent-box-opencode:<opencode-version>
-    ai-agent-box-omp:<omp-version>
-    ai-agent-box-opencode-java:<jdk-major>
-    ai-agent-box-omp-java:<jdk-major>
-
+```
+ai-agent-box-opencode:<opencode-version>
+ai-agent-box-omp:<omp-version>
+ai-agent-box-opencode-java:<jdk-major>
+ai-agent-box-omp-java:<jdk-major>
+```
 ### Option 2 — variant in the tag
-
-    ai-agent-box:opencode.<opencode-version>
-    ai-agent-box:omp.<omp-version>
-    ai-agent-box:opencode.java.<jdk-major>
-    ai-agent-box:omp.java.<jdk-major>
-
+```
+ai-agent-box:opencode.<opencode-version>
+ai-agent-box:omp.<omp-version>
+ai-agent-box:opencode.java.<jdk-major>
+ai-agent-box:omp.java.<jdk-major>
+```
 ## Option 1 — pros and cons
 
 ### Pros
