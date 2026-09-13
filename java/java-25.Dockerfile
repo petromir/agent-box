@@ -8,8 +8,19 @@
 # system-wide — same philosophy as the base image.
 
 # Bump to match the base image tag you built/pulled.
-ARG BASE_IMAGE=ai-agent-box:latest
+ARG BASE_IMAGE=ai-agent-box-opencode:latest
 FROM ${BASE_IMAGE}
+
+# The base image's runtime user is named after its agent (`opencode` in
+# opencode/opencode.Dockerfile, `omp` in omp/omp.Dockerfile), and Docker resolves
+# `USER <name>` against the image's /etc/passwd at container start — a name the
+# base image does not define yields an image that builds but cannot run. So the
+# final USER below is a build arg: leave it alone for the opencode base, or set
+# it alongside BASE_IMAGE when deriving from the omp variant, e.g.
+#   --build-arg BASE_IMAGE=ai-agent-box-omp:<x.y.z> --build-arg BASE_USER=omp
+# (both variants use uid 10001 and HOME=/home/ai-agent-box, so nothing else in
+# this file is base-variant specific).
+ARG BASE_USER=opencode
 
 USER root
 
@@ -87,4 +98,4 @@ RUN arch="$(uname -m)" && \
 
 ENV PATH="/opt/mvnd/bin:${PATH}"
 
-USER opencode
+USER ${BASE_USER}

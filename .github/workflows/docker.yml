@@ -1,16 +1,17 @@
 # CI/CD for the ai-agent-box images.
 #
-#   test    — every PR and every push to master: builds all three images
-#             (opencode, omp, java) and runs the repo's own verification
-#             suite, tests/run-tests.sh (the AGENTS.md "Verify every change"
-#             checklist: default/root/adaptation/arbitrary-uid paths, serve,
-#             hardening, bundled shellcheck).
+#   test    — every PR and every push to master: builds all four images
+#             (opencode, omp, opencode-java, omp-java) and runs the repo's own
+#             verification suite, tests/run-tests.sh (the AGENTS.md "Verify
+#             every change" checklist: default/root/adaptation/arbitrary-uid
+#             paths, serve, hardening, bundled shellcheck).
 #   publish — pushes to master only, after test passes: builds each image
 #             with buildx (linux/amd64) and pushes it to Docker Hub under
 #             the account named by the DOCKERHUB_USERNAME secret:
-#               ai-agent-box       <- opencode/opencode.Dockerfile
-#               ai-agent-box-omp   <- omp/omp.Dockerfile
-#               ai-agent-box-java  <- java/java.25.Dockerfile (derived)
+#               ai-agent-box-opencode       <- opencode/opencode.Dockerfile
+#               ai-agent-box-omp            <- omp/omp.Dockerfile
+#               ai-agent-box-opencode-java  <- java/java-25.Dockerfile (derived)
+#               ai-agent-box-omp-java       <- java/java-25.Dockerfile (derived, BASE_USER=omp)
 #
 # Required repository secrets (Settings > Secrets and variables > Actions):
 #   DOCKERHUB_USERNAME — Docker Hub user/org; also used as the image namespace
@@ -19,9 +20,10 @@
 # Image tags track the versions pinned in the Dockerfiles (single source of
 # truth), so bumping e.g. ARG OPENCODE_VERSION automatically publishes under
 # the new tag:
-#   ai-agent-box:<OPENCODE_VERSION>, ai-agent-box:latest
-#   ai-agent-box-omp:<OMP_VERSION>,  ai-agent-box-omp:latest
-#   ai-agent-box-java:<JDK major>,   ai-agent-box-java:latest
+#   ai-agent-box-opencode:<OPENCODE_VERSION>, ai-agent-box-opencode:latest
+#   ai-agent-box-omp:<OMP_VERSION>,           ai-agent-box-omp:latest
+#   ai-agent-box-opencode-java:<JDK major>,   ai-agent-box-opencode-java:latest
+#   ai-agent-box-omp-java:<JDK major>,        ai-agent-box-omp-java:latest
 
 name: Docker CI/CD
 
@@ -89,7 +91,7 @@ jobs:
         run: |
           opencode=$(sed -n 's/^ARG OPENCODE_VERSION=//p' opencode/opencode.Dockerfile)
           omp=$(sed -n 's/^ARG OMP_VERSION=//p' omp/omp.Dockerfile)
-          jdk=$(sed -n 's/^ARG LIBERICA_VERSION=//p' java/java.25.Dockerfile | cut -d. -f1)
+          jdk=$(sed -n 's/^ARG LIBERICA_VERSION=//p' java/java-25.Dockerfile | cut -d. -f1)
           if [ -z "$opencode" ] || [ -z "$omp" ] || [ -z "$jdk" ]; then
             echo "::error::Could not extract a pinned version (OPENCODE_VERSION / OMP_VERSION / LIBERICA_VERSION) from the Dockerfiles; refusing to guess registry tags."
             exit 1
@@ -115,7 +117,7 @@ jobs:
       # provenance=false keeps each published tag a plain single-platform
       # image manifest instead of a manifest index carrying an attestation
       # artifact — least surprise for docker pull/skopeo/registry mirrors.
-      - name: Build and push ai-agent-box (opencode)
+      - name: Build and push ai-agent-box-opencode
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -126,8 +128,8 @@ jobs:
           build-args: |
             REVISION=${{ github.sha }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box:${{ steps.versions.outputs.opencode }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-opencode:${{ steps.versions.outputs.opencode }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-opencode:latest
           cache-from: type=gha,scope=opencode
           cache-to: type=gha,mode=max,scope=opencode
 
@@ -151,18 +153,37 @@ jobs:
       # immutable version tag (not :latest), so the java image always layers
       # on the exact base published from this commit. The base image's OCI
       # labels (including REVISION) are inherited through FROM.
-      - name: Build and push ai-agent-box-java
+      - name: Build and push ai-agent-box-opencode-java
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: java/java.25.Dockerfile
+          file: java/java-25.Dockerfile
           platforms: linux/amd64
           push: true
           provenance: false
           build-args: |
-            BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box:${{ steps.versions.outputs.opencode }}
+            BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-opencode:${{ steps.versions.outputs.opencode }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-java:${{ steps.versions.outputs.jdk }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-java:latest
-          cache-from: type=gha,scope=java
-          cache-to: type=gha,mode=max,scope=java
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-opencode-java:${{ steps.versions.outputs.jdk }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-opencode-java:latest
+          cache-from: type=gha,scope=opencode-java
+          cache-to: type=gha,mode=max,scope=opencode-java
+
+      # Same layer on the omp base. BASE_USER selects the runtime user the omp
+      # base image defines (`omp`, uid 10001) so the final `USER` resolves.
+      - name: Build and push ai-agent-box-omp-java
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: java/java-25.Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-omp:${{ steps.versions.outputs.omp }}
+            BASE_USER=omp
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-omp-java:${{ steps.versions.outputs.jdk }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ai-agent-box-omp-java:latest
+          cache-from: type=gha,scope=omp-java
+          cache-to: type=gha,mode=max,scope=omp-java

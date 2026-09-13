@@ -39,7 +39,7 @@ RUN set -o pipefail && \
 # fails open (warns and continues) in some fallback branches. Instead: pinned
 # version + pinned per-architecture SHA256, downloaded directly from the
 # GitHub release and verified the same way as Liberica/mvnd in
-# java/java.25.Dockerfile — fail closed on unsupported arch or checksum
+# java/java-25.Dockerfile — fail closed on unsupported arch or checksum
 # mismatch.
 ARG FFF_MCP_VERSION=v0.10.6
 ARG FFF_MCP_SHA256_AMD64=a44ef64015f1754aa63b690c24d9a748ed16298f05350da7b09554c4c98dfb0f

@@ -8,12 +8,13 @@
 
 # Docs and license are not used by the build
 *.md
+docs
 LICENSE
 
 # Container artifacts (opencode/opencode-entrypoint.sh and omp/omp-entrypoint.sh ARE
 # copied by the Dockerfiles — keep them)
 opencode/opencode.Dockerfile
 omp/omp.Dockerfile
-java/java.25.Dockerfile
+java/java-25.Dockerfile
 docker-compose*
 .dockerignore

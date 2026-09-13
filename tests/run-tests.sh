@@ -4,11 +4,11 @@
 #
 # Automates the AGENTS.md "Verify every change" checklist:
 #
-#   opencode image (ai-agent-box:local)
+#   opencode image (ai-agent-box-opencode:local)
 #     - build
 #     - bundled shellcheck: pinned version runs, flags a known issue, passes a
 #       clean script, and its GPLv3 license text + source pointer ship in the
-#       image (repeated for the omp and java images)
+#       image (repeated for the omp and both java images)
 #     - default (non-root) path: --version prints the release
 #     - root/uid-adaptation path (legacy --user 0): "adapting uid/gid..."
 #       message, adapted user can git-status /workspace and write
@@ -21,14 +21,14 @@
 #       --security-opt=no-new-privileges, and --read-only + tmpfs; the
 #       --user 0 path works with the documented minimal capability set
 #       (CHOWN, SETUID, SETGID, SETPCAP) plus no-new-privileges
-#     - arbitrary-uid path (PLAN-arbitrary-uid-home-layout.md): the zero-
+#     - arbitrary-uid path (README "Why gid 0?"): the zero-
 #       `--user` default stays uid=10001 gid=10001 (unchanged); an arbitrary
 #       uid with gid 0 (primary or via --group-add) can write the home tree
 #       and use git with NO uid/gid rewrite and NO root at any point; the
 #       same uid without gid 0 in any form cannot write (negative control);
 #       the recipe works with --cap-drop=ALL + --read-only (--user 0 cannot);
 #       ssh/whoami resolve the uid via the entrypoint's passwd self-heal
-#   omp image (ai-agent-box:omp-local)
+#   omp image (ai-agent-box-omp:local)
 #     - build
 #     - bundled shellcheck: same checks as the opencode image
 #     - default (non-root) path: --version prints omp/<release>
@@ -40,8 +40,9 @@
 #     - hardening: same checks as the opencode image
 #     - arbitrary-uid path: same checks as the opencode image, for
 #       ~/.omp and ~/.omp/agent
-#   java image (ai-agent-box:java, derived from ai-agent-box:local)
-#     - build with BASE_IMAGE=ai-agent-box:local
+#   opencode-java image (ai-agent-box-opencode-java:local, derived from
+#   ai-agent-box-opencode:local)
+#     - build with BASE_IMAGE=ai-agent-box-opencode:local
 #     - default path: opencode --version plus java/mvnd/python3 toolchain
 #     - bundled shellcheck: same checks as the opencode image (inherited)
 #     - uid-adaptation path (legacy --user 0)
@@ -49,6 +50,15 @@
 #     - hardening: same checks as the opencode image (the arbitrary-uid path
 #       is not re-tested here — it lives entirely in the inherited base-image
 #       entrypoint/Dockerfile layout, already covered by the opencode checks)
+#   omp-java image (ai-agent-box-omp-java:local, derived from
+#   ai-agent-box-omp:local with BASE_USER=omp)
+#     - build with BASE_IMAGE=ai-agent-box-omp:local BASE_USER=omp
+#     - default path: omp --version plus java/mvnd/python3 toolchain
+#     - bundled shellcheck: same checks as the omp image (inherited)
+#     - uid-adaptation path (legacy --user 0) against ~/.omp and ~/.omp/agent
+#     - hardening: same checks as the omp image
+#     - no serve path: omp has no HTTP server, so there is no hostname
+#       injection and no EXPOSE metadata to test on this image
 #
 # Docker Desktop (macOS) squashes bind-mount ownership, so the native-Linux
 # foreign-uid case is simulated deterministically: a derived "sim" image chowns
@@ -59,7 +69,7 @@
 # Usage:
 #   tests/run-tests.sh                build all images and run every check
 #   tests/run-tests.sh --skip-build   reuse already-built images
-#   tests/run-tests.sh --only omp     subset: opencode, omp, java
+#   tests/run-tests.sh --only omp     subset: opencode, omp, java (java = both)
 #   tests/run-tests.sh --keep         keep temp dir and sim images for debugging
 #
 # Exit codes: 0 all checks passed, 1 at least one check failed, 2 setup error.
@@ -68,15 +78,16 @@ set -uo pipefail
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 
-oc_image=ai-agent-box:local
-omp_image=ai-agent-box:omp-local
-java_image=ai-agent-box:java
+oc_image=ai-agent-box-opencode:local
+omp_image=ai-agent-box-omp:local
+oc_java_image=ai-agent-box-opencode-java:local
+omp_java_image=ai-agent-box-omp-java:local
 
 # Unusual ports so the suite does not clash with a locally running server.
 oc_serve_port=14096
 oc_override_port=14097
-java_serve_port=14098
-java_override_port=14099
+oc_java_serve_port=14098
+oc_java_override_port=14099
 
 # Must match ARG SHELLCHECK_VERSION in both Dockerfiles (v0.11.0 -> 0.11.0).
 # The upstream tool ships no Wolfi package, so its pin lives in the Dockerfile.
@@ -96,7 +107,8 @@ sim_images=""
 
 oc_ver=""
 omp_ver=""
-java_ver=""
+oc_java_ver=""
+omp_java_ver=""
 
 usage() {
     cat <<'EOF'
@@ -105,6 +117,7 @@ Usage: tests/run-tests.sh [--skip-build] [--keep] [--only opencode,omp,java]
   --skip-build  reuse already-built images instead of rebuilding them
   --keep        keep the temp dir and sim images for debugging
   --only LIST   comma-separated subset of variants: opencode, omp, java
+                (java builds and tests both derived java images)
 EOF
 }
 
@@ -399,7 +412,7 @@ test_hardened_adaptation() {
     assert_contains "$label: hardened adapted identity" "$out" "probe uid=999 gid=999"
 }
 
-# --- arbitrary-uid (PLAN-arbitrary-uid-home-layout.md) ----------------------
+# --- arbitrary-uid (README "Why gid 0?") ------------------------------------
 #
 # These tests reuse the sim image already built by test_*_adaptation (its
 # /workspace is chowned to uid 999 — the same deterministic stand-in for a
@@ -658,35 +671,64 @@ test_omp_nonroot_mounted_home() {
     assert_contains "omp: non-root mounted run prints version" "$out" "omp/"
 }
 
-# --- java -------------------------------------------------------------------
+# --- java (opencode base and omp base) --------------------------------------
 
-test_java_default() {
-    local tool
-    java_ver=$(docker run --rm "$java_image" --version 2>/dev/null)
-    case "$java_ver" in
-        [0-9]*.[0-9]*.[0-9]*) ok "java: default --version ($java_ver)" ;;
-        *) bad "java: default --version" "unexpected output: '$java_ver'" ;;
+# check_version <test-name> <base> <version>
+# opencode prints "x.y.z"; omp prints "omp/x.y.z".
+check_version() {
+    local name=$1 base=$2 ver=$3
+    case "$base" in
+        opencode)
+            case "$ver" in
+                [0-9]*.[0-9]*.[0-9]*) ok "$name ($ver)"; return ;;
+            esac ;;
+        omp)
+            case "$ver" in
+                omp/[0-9]*.[0-9]*.[0-9]*) ok "$name ($ver)"; return ;;
+            esac ;;
     esac
-    tool=$(docker run --rm --entrypoint bash "$java_image" \
-        -c 'java -version 2>&1 | head -1 && mvnd --version 2>&1 | head -1 && python3 --version' 2>&1)
-    assert_contains "java: JDK present" "$tool" "openjdk"
-    assert_contains "java: mvnd present" "$tool" "mvnd"
-    assert_contains "java: python3 present" "$tool" "Python"
+    bad "$name" "unexpected output: '$ver'"
 }
 
+# test_java_toolchain <image> <label>
+test_java_toolchain() {
+    local image=$1 label=$2 tool
+    tool=$(docker run --rm --entrypoint bash "$image" \
+        -c 'java -version 2>&1 | head -1 && mvnd --version 2>&1 | head -1 && python3 --version' 2>&1)
+    assert_contains "$label: JDK present" "$tool" "openjdk"
+    assert_contains "$label: mvnd present" "$tool" "mvnd"
+    assert_contains "$label: python3 present" "$tool" "Python"
+}
+
+# test_java_adaptation <image> <label> <base>
+# The base image decides the inherited entrypoint, agent binary, and state
+# dirs: opencode -> /usr/local/bin/opencode + ~/.config/opencode; omp ->
+# /usr/local/bin/omp + ~/.omp. Builds its own sim image (sim-<label>).
 test_java_adaptation() {
-    local sim="sim-java:$run_id" out rc
-    if ! make_sim "$java_image" "$sim"; then
-        bad "java: adaptation" "sim image build failed"
+    local image=$1 label=$2 base=$3 sim="sim-$2:$run_id" script binary out rc
+    if [ "$base" = opencode ]; then
+        script="$work_dir/fake-write-opencode.sh"
+        binary=/usr/local/bin/opencode
+    else
+        script="$work_dir/fake-write-omp.sh"
+        binary=/usr/local/bin/omp
+    fi
+    if ! make_sim "$image" "$sim"; then
+        bad "$label: adaptation" "sim image build failed"
         return
     fi
-    out=$(run_adaptation "$sim" "$work_dir/fake-write-opencode.sh" /usr/local/bin/opencode); rc=$?
-    assert_exit0 "java: adaptation exit code" "$rc" "$out"
-    assert_contains "java: adaptation message" "$out" "adapting uid/gid to mounted workspace owner 999:999"
-    assert_contains "java: adapted identity" "$out" "probe uid=999 gid=999"
-    assert_contains "java: git works in workspace" "$out" "git-status OK"
-    assert_contains "java: ~/.config/opencode writable" "$out" "write-config OK"
-    assert_contains "java: ~/.local/share/opencode writable" "$out" "write-data OK"
+    out=$(run_adaptation "$sim" "$script" "$binary"); rc=$?
+    assert_exit0 "$label: adaptation exit code" "$rc" "$out"
+    assert_contains "$label: adaptation message" "$out" "adapting uid/gid to mounted workspace owner 999:999"
+    assert_contains "$label: adapted identity" "$out" "probe uid=999 gid=999"
+    assert_contains "$label: git works in workspace" "$out" "git-status OK"
+    if [ "$base" = opencode ]; then
+        assert_contains "$label: ~/.config/opencode writable" "$out" "write-config OK"
+        assert_contains "$label: ~/.local/share/opencode writable" "$out" "write-data OK"
+    else
+        assert_contains "$label: ~/.omp writable" "$out" "write-home OK"
+        assert_contains "$label: ~/.omp/agent writable" "$out" "write-agent OK"
+    fi
 }
 
 # --- main -------------------------------------------------------------------
@@ -767,20 +809,44 @@ fi
 
 if want java; then
     if [ "$skip_build" -eq 0 ]; then
-        # java derives from the opencode image; make sure the base exists.
+        # Both java images derive from a base image; make sure each base exists.
         have_image "$oc_image" || build_image opencode opencode/opencode.Dockerfile "$oc_image"
-        build_image java java/java.25.Dockerfile "$java_image" --build-arg BASE_IMAGE="$oc_image"
+        have_image "$omp_image" || build_image omp omp/omp.Dockerfile "$omp_image"
+        build_image opencode-java java/java-25.Dockerfile "$oc_java_image" \
+            --build-arg BASE_IMAGE="$oc_image"
+        build_image omp-java java/java-25.Dockerfile "$omp_java_image" \
+            --build-arg BASE_IMAGE="$omp_image" --build-arg BASE_USER=omp
     fi
-    if have_image "$java_image"; then
-        test_java_default
-        test_shellcheck "$java_image" java
-        test_java_adaptation
-        test_serve "$java_image" java "$java_serve_port" "$java_ver"
-        test_serve_override "$java_image" java "$java_override_port"
-        test_hardened_default "$java_image" java
-        test_hardened_adaptation "sim-java:$run_id" "$work_dir/fake-write-opencode.sh" /usr/local/bin/opencode java
+
+    if have_image "$oc_java_image"; then
+        oc_java_ver=$(docker run --rm "$oc_java_image" --version 2>/dev/null)
+        check_version "opencode-java: default --version" opencode "$oc_java_ver"
+        test_shellcheck "$oc_java_image" opencode-java
+        test_java_toolchain "$oc_java_image" opencode-java
+        test_java_adaptation "$oc_java_image" opencode-java opencode
+        test_serve "$oc_java_image" opencode-java "$oc_java_serve_port" "$oc_java_ver"
+        test_serve_override "$oc_java_image" opencode-java "$oc_java_override_port"
+        test_hardened_default "$oc_java_image" opencode-java
+        test_hardened_adaptation "sim-opencode-java:$run_id" \
+            "$work_dir/fake-write-opencode.sh" /usr/local/bin/opencode opencode-java
     else
-        bad "java: image present" "$java_image not found (build failed, or run without --skip-build)"
+        bad "opencode-java: image present" \
+            "$oc_java_image not found (build failed, or run without --skip-build)"
+    fi
+
+    if have_image "$omp_java_image"; then
+        omp_java_ver=$(docker run --rm "$omp_java_image" --version 2>/dev/null)
+        check_version "omp-java: default --version" omp "$omp_java_ver"
+        test_shellcheck "$omp_java_image" omp-java
+        test_java_toolchain "$omp_java_image" omp-java
+        test_java_adaptation "$omp_java_image" omp-java omp
+        test_hardened_default "$omp_java_image" omp-java
+        test_hardened_adaptation "sim-omp-java:$run_id" \
+            "$work_dir/fake-write-omp.sh" /usr/local/bin/omp omp-java
+        # No serve test: omp has no HTTP server.
+    else
+        bad "omp-java: image present" \
+            "$omp_java_image not found (build failed, or run without --skip-build)"
     fi
 fi
 

@@ -26,14 +26,14 @@ that close that gap.
 
 ```bash
 # Default: builds the pinned OpenCode release (see OPENCODE_VERSION in opencode/opencode.Dockerfile)
-docker build -f opencode/opencode.Dockerfile -t ai-agent-box:1.18.30 .
+docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
 
 # Pin a different OpenCode release (bump OPENCODE_VERSION and VERSION together
 # so the installed binary and the OCI version label stay in sync)
-docker build -f opencode/opencode.Dockerfile --build-arg OPENCODE_VERSION=<x.y.z> --build-arg VERSION=<x.y.z> -t ai-agent-box:<x.y.z> .
+docker build -f opencode/opencode.Dockerfile --build-arg OPENCODE_VERSION=<x.y.z> --build-arg VERSION=<x.y.z> -t ai-agent-box-opencode:<x.y.z> .
 
 # Pin a different version of a bundled tool (ripgrep, jq, yq, patch, diffutils)
-docker build -f opencode/opencode.Dockerfile --build-arg JQ_VERSION=1.8.2-r1 -t ai-agent-box:1.18.30 .
+docker build -f opencode/opencode.Dockerfile --build-arg JQ_VERSION=1.8.2-r1 -t ai-agent-box-opencode:local .
 
 # Pin a different shellcheck release. Also update SHELLCHECK_SHA256_AMD64 /
 # SHELLCHECK_SHA256_ARM64 to that release's linux tarball checksums
@@ -56,7 +56,7 @@ seen your proxy's private root. Fix it for your build only, without baking
 the CA into the shipped image, using a BuildKit secret:
 
 ```bash
-docker build -f opencode/opencode.Dockerfile --secret id=external_ca,src=/path/to/your-ca-bundle.pem -t ai-agent-box:1.18.30 .
+docker build -f opencode/opencode.Dockerfile --secret id=external_ca,src=/path/to/your-ca-bundle.pem -t ai-agent-box-opencode:local .
 ```
 
 - The secret is mounted into a tmpfs for that build step only; it is never
@@ -83,7 +83,7 @@ docker run -it --rm \
   --user "$(id -u):$(id -g)" --group-add 0 \
   -v "$PWD:/workspace" \
   -v "$HOME/.local/share/opencode:/home/ai-agent-box/.local/share/opencode" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 - `--user "$(id -u):$(id -g)" --group-add 0` — native Linux only; matches
@@ -106,19 +106,19 @@ directories from the host:
 docker run -it --rm \
   -v "$PWD:/workspace" \
   -v "$HOME/.config/opencode:/home/ai-agent-box/.config/opencode" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 
 # Individual config file only
 docker run -it --rm \
   -v "$PWD:/workspace" \
   -v "$HOME/.config/opencode/opencode.json:/home/ai-agent-box/.config/opencode/opencode.json" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 
 # Custom skills directory
 docker run -it --rm \
   -v "$PWD:/workspace" \
   -v "$HOME/.config/opencode/skills:/home/ai-agent-box/.config/opencode/skills" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 Container paths:
@@ -136,8 +136,8 @@ directory — your host files are used as-is.
 ### Non-interactive
 
 ```bash
-docker run -it --rm -v "$PWD:/workspace" ai-agent-box:1.18.30 run "explain this repo"
-docker run --rm -v "$PWD:/workspace" ai-agent-box:1.18.30 --version
+docker run -it --rm -v "$PWD:/workspace" ai-agent-box-opencode:local run "explain this repo"
+docker run --rm -v "$PWD:/workspace" ai-agent-box-opencode:local --version
 ```
 
 ### Server (`opencode serve`)
@@ -151,7 +151,7 @@ run shell commands, so publish it to loopback only and always set a password.
 ```bash
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
-  --name opencode-server ai-agent-box:1.18.30 serve
+  --name opencode-server ai-agent-box-opencode:local serve
 ```
 
 - `-p 127.0.0.1:4096:4096` — publish the serve port to loopback **only**;
@@ -211,7 +211,7 @@ reachable via `docker exec`, since a loopback-bound server is not reachable
 through a published port at all):
 
 ```bash
-docker run --rm -d -v "$PWD:/workspace" --name oc-lb ai-agent-box:1.18.30 serve --port 4097 --hostname 127.0.0.1
+docker run --rm -d -v "$PWD:/workspace" --name oc-lb ai-agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
 docker exec oc-lb curl -s http://localhost:4097/global/health
 ```
 
@@ -227,7 +227,7 @@ Allow browser origins (CORS):
 ```bash
 docker run --rm -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
-  ai-agent-box:1.18.30 serve --cors http://localhost:5173 --cors https://app.example.com
+  ai-agent-box-opencode:local serve --cors http://localhost:5173 --cors https://app.example.com
 ```
 
 #### Authentication
@@ -240,7 +240,7 @@ loopback-bound port):
 ```bash
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
-  ai-agent-box:1.18.30 serve
+  ai-agent-box-opencode:local serve
 ```
 
 The username defaults to `opencode`; override with
@@ -257,12 +257,12 @@ containers:
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   -v "$HOME/.local/share/opencode:/home/ai-agent-box/.local/share/opencode" \
   -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
-  ai-agent-box:1.18.30 serve
+  ai-agent-box-opencode:local serve
 ```
 
 On native Linux with a host uid other than `10001`, add
 `--user "$(id -u):$(id -g)" --group-add 0` (works the same in serve mode, no
-root involved): `docker run --rm -d --user "$(id -u):$(id -g)" --group-add 0 -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" ai-agent-box:1.18.30 serve`.
+root involved): `docker run --rm -d --user "$(id -u):$(id -g)" --group-add 0 -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" ai-agent-box-opencode:local serve`.
 
 > Note: mDNS discovery (`--mdns`) relies on host multicast and typically does
 > not function inside a container without `--network host`. Given the
@@ -282,7 +282,7 @@ Bind mounts keep host uid/gid. If your host uid differs from the image's
 docker run -it --rm \
   --user "$(id -u):$(id -g)" --group-add 0 \
   -v "$PWD:/workspace" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 - `--user "$(id -u):$(id -g)"` — runs the container as your exact host uid
@@ -296,7 +296,7 @@ docker run -it --rm \
   `git config --system --add safe.directory '*'` at build time, so it
   trusts any workspace regardless of uid — no runtime step needed.
 - One-time setup, not a per-run burden: put the command in a shell alias
-  or function (`alias agent-box='docker run -it --rm --user "$(id -u):$(id -g)" --group-add 0 -v "$PWD:/workspace" ai-agent-box:1.18.30'`),
+  or function (`alias agent-box='docker run -it --rm --user "$(id -u):$(id -g)" --group-add 0 -v "$PWD:/workspace" ai-agent-box-opencode:local'`),
   or use the [Compose snippet](#compose-snippet) below.
 
 **Legacy alternative: `--user 0`.** Still supported, not removed, but no
@@ -305,7 +305,7 @@ root so the entrypoint can rewrite its own uid/gid, whereas the recipe above
 never uses root at all:
 
 ```bash
-docker run -it --rm --user 0 -v "$PWD:/workspace" ai-agent-box:1.18.30
+docker run -it --rm --user 0 -v "$PWD:/workspace" ai-agent-box-opencode:local
 ```
 
 The entrypoint rewrites the runtime user's uid/gid to the mount owner, marks
@@ -328,11 +328,11 @@ directories, no matter what its own uid is.
 
 ```
 # without --group-add 0:
-$ docker run --user 1000:1000 ai-agent-box:1.18.30 run "..."
+$ docker run --user 1000:1000 ai-agent-box-opencode:local run "..."
 EACCES: permission denied, mkdir '/home/ai-agent-box/.local/share/opencode/log'
 
 # with --group-add 0:
-$ docker run --user 1000:1000 --group-add 0 ai-agent-box:1.18.30 run "..."
+$ docker run --user 1000:1000 --group-add 0 ai-agent-box-opencode:local run "..."
 # works — id inside the container shows: uid=1000 gid=1000 groups=0(root),1000
 ```
 
@@ -352,7 +352,7 @@ the former keeps your primary gid as whatever your policy expects.
 ```yaml
 services:
   agent:
-    image: ai-agent-box:1.18.30
+    image: ai-agent-box-opencode:local
     user: "${UID:-1000}:${GID:-1000}"
     group_add:
       - "0"
@@ -399,7 +399,7 @@ docker run -it --rm \
   --security-opt=no-new-privileges \
   --pids-limit=512 --memory=4g --cpus=2 \
   -v "$PWD:/workspace" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 Add, if you don't need persisted sessions (verified working; omit the tmpfs
@@ -428,7 +428,7 @@ docker run -it --rm \
   --tmpfs /home/ai-agent-box:rw,nosuid,nodev,uid=$(id -u),gid=0,mode=0770 \
   --pids-limit=512 --memory=4g --cpus=2 \
   -v "$PWD:/workspace" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 (Omit the `--read-only`/`--tmpfs` lines if you don't need that level of
@@ -450,7 +450,7 @@ docker run -it --rm --user 0 \
   --security-opt=no-new-privileges \
   --pids-limit=512 --memory=4g --cpus=2 \
   -v "$PWD:/workspace" \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 `--read-only` is **not compatible** with `--user 0`: the entrypoint needs a
@@ -556,7 +556,7 @@ download (`FFF_MCP_VERSION`, `FFF_MCP_SHA256_AMD64`/`FFF_MCP_SHA256_ARM64`)
 — deliberately not via the vendor's `curl | bash` installer, since that
 script is itself fetched unpinned and its checksum verification fails open
 in some fallback branches. Same reproducible, checksum-verified pattern as
-the Liberica JDK/mvnd installs in `java/java.25.Dockerfile`.
+the Liberica JDK/mvnd installs in `java/java-25.Dockerfile`.
 
 Also bundled: [`shellcheck`](https://github.com/koalaman/shellcheck)
 (`/usr/local/bin/shellcheck`, root-owned, 0755), a static analyzer for
@@ -581,14 +581,14 @@ this table sat stale for two weeks while two new tools were added to the image.
 Measure your own build instead:
 
 ```bash
-docker build -f opencode/opencode.Dockerfile -t ai-agent-box:local .
+docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
 
 # Total, uncompressed (what the node's disk actually pays):
-docker images --format '{{.Size}}' ai-agent-box:local
+docker images --format '{{.Size}}' ai-agent-box-opencode:local
 
 # Who spends it (newest layers first; the layers below this cut all come from
 # the Wolfi base, built by `apko`):
-docker history --format '{{.Size}}  {{.CreatedBy}}' ai-agent-box:local | head -20
+docker history --format '{{.Size}}  {{.CreatedBy}}' ai-agent-box-opencode:local | head -20
 ```
 
 Three traps when reading those numbers:
@@ -619,7 +619,7 @@ quoting this table:
 | **Total** | **384 MB** | |
 
 The omp variant is the same shape with a different agent binary. The
-`java/java.25.Dockerfile` worked example lands near 1 GB — that is the cost of
+`java/java-25.Dockerfile` worked example lands near 1 GB — that is the cost of
 the JDK/mvnd/Python layer you add, not of the base.
 
 ## Variant: omp (Oh-My-Pi)
@@ -633,27 +633,27 @@ pinned, checksum-verified way). The agent is installed via the official installe
 (`OMP_VERSION`), and only the binary is copied into the final image.
 
 ```bash
-docker build -f omp/omp.Dockerfile -t ai-agent-box:v18.1.17 .
+docker build -f omp/omp.Dockerfile -t ai-agent-box-omp:local .
 
 # Pin a different omp release (bump OMP_VERSION and VERSION together so the
 # installed binary and the OCI version label stay in sync)
 docker build -f omp/omp.Dockerfile \
   --build-arg OMP_VERSION=v<x.y.z> --build-arg VERSION=v<x.y.z> \
-  -t ai-agent-box:v<x.y.z> .
+  -t ai-agent-box-omp:v<x.y.z> .
 
 # Interactive TUI
-docker run -it --rm -v "$PWD:/workspace" ai-agent-box:v18.1.17
+docker run -it --rm -v "$PWD:/workspace" ai-agent-box-omp:local
 
 # One-shot prompt
-docker run -it --rm -v "$PWD:/workspace" ai-agent-box:v18.1.17 -p "explain this repo"
+docker run -it --rm -v "$PWD:/workspace" ai-agent-box-omp:local -p "explain this repo"
 
 # Persist config and sessions across containers (entire directory or agent subfolder)
 docker run -it --rm -v "$PWD:/workspace" \
-  -v "$HOME/.omp:/home/ai-agent-box/.omp" ai-agent-box:v18.1.17
+  -v "$HOME/.omp:/home/ai-agent-box/.omp" ai-agent-box-omp:local
 
 # Or persist only the agent directory:
 # docker run -it --rm -v "$PWD:/workspace" \
-#   -v "$HOME/.omp/agent:/home/ai-agent-box/.omp/agent" ai-agent-box:v18.1.17
+#   -v "$HOME/.omp/agent:/home/ai-agent-box/.omp/agent" ai-agent-box-omp:local
 ```
 
 Differences from the OpenCode image:
@@ -677,7 +677,7 @@ You can layer extra tools (Python, Java, Maven, etc.) on top of this image by
 using it as a base in your own Dockerfile:
 
 ```dockerfile
-FROM ai-agent-box:1.18.30
+FROM ai-agent-box-opencode:local
 
 # The runtime stage ends on `USER opencode` (uid 10001), so switch back to
 # root to install packages, then drop privileges again.
@@ -703,10 +703,13 @@ USER opencode
 
 Things to keep in mind:
 
-- **Switch to `USER root` before `apk add`, then back to `USER opencode`.**
-  The base image is non-root by default; installing packages needs root, but
-  the final image should stay non-root unless you have a specific reason not
-  to.
+- **Switch to `USER root` before `apk add`, then back to the base image's
+  user.** The base image is non-root by default; installing packages needs
+  root, but the final image should stay non-root unless you have a specific
+  reason not to. That user is `opencode` in `ai-agent-box-opencode` and `omp`
+  in `ai-agent-box-omp` (both uid 10001, both `$HOME=/home/ai-agent-box`) — and
+  the name must exist in the image, since `docker run` resolves it through
+  `/etc/passwd` before the container starts.
 - **Verify Wolfi package names before installing.** This image is built on
   Chainguard Wolfi, whose package names sometimes differ from Alpine's (or
   don't exist at all). Check first:
@@ -750,7 +753,7 @@ Things to keep in mind:
   "$JAVA_HOME/lib/security/cacerts" -storepass changeit` step after
   installing the JDK, JVM-side HTTPS calls (e.g. Maven resolving
   dependencies) still fail with `PKIX path building failed`. See
-  `java/java.25.Dockerfile` for the worked-example step.
+  `java/java-25.Dockerfile` for the worked-example step.
 - **Expect the image to grow.** Toolchains like a JDK and Maven add real
   weight (often 300–500 MB combined); the "minimal" sizing in this README
   applies to the unmodified base image, not your derived one.
@@ -765,27 +768,44 @@ Things to keep in mind:
   `docker run --rm --entrypoint sh <your-image> -c "find / -xdev \( -perm -4000 -o -perm -2000 \) -type f 2>/dev/null"`
   should print nothing.
 
-### Worked example: `java/java.25.Dockerfile`
+### Worked example: `java/java-25.Dockerfile`
 
-This repo ships [`java/java.25.Dockerfile`](java/java.25.Dockerfile) as a canonical derived
+This repo ships [`java/java-25.Dockerfile`](java/java-25.Dockerfile) as a canonical derived
 image: it layers BellSoft Liberica JDK 25, Maven Daemon (`mvnd`, which bundles
-Maven), and Python 3.13 on top of the base image. It demonstrates the pattern
-recommended above: pinned, checksum-verified tarball downloads installed
-system-wide for tools Wolfi does not package (SDKMAN was considered and
-rejected — it is per-user, writes to `$HOME`, and depends on a live version
-catalog, so builds are not reproducible).
+Maven), and Python 3.13 on top of the base image. The same file builds two
+images, one per base agent. It demonstrates the pattern recommended above:
+pinned, checksum-verified tarball downloads installed system-wide for tools
+Wolfi does not package (SDKMAN was considered and rejected — it is per-user,
+writes to `$HOME`, and depends on a live version catalog, so builds are not
+reproducible).
 
-Build and verify:
+Build and verify both:
 
 ```bash
-docker build -f opencode/opencode.Dockerfile -t ai-agent-box:1.18.30 .
-docker build -f java/java.25.Dockerfile --build-arg BASE_IMAGE=ai-agent-box:1.18.30 -t ai-agent-box:java .
-docker run --rm --entrypoint bash ai-agent-box:java -c 'java -version && mvnd --version && python3 --version'
+docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
+docker build -f omp/omp.Dockerfile -t ai-agent-box-omp:local .
+
+# opencode base
+docker build -f java/java-25.Dockerfile \
+  --build-arg BASE_IMAGE=ai-agent-box-opencode:local \
+  -t ai-agent-box-opencode-java:local .
+docker run --rm --entrypoint bash ai-agent-box-opencode-java:local \
+  -c 'opencode --version && java -version && mvnd --version && python3 --version'
+
+# omp base — same layer, different agent. The runtime user the base image
+# defines differs (`omp` instead of `opencode`), so point BASE_USER at it.
+docker build -f java/java-25.Dockerfile \
+  --build-arg BASE_IMAGE=ai-agent-box-omp:local --build-arg BASE_USER=omp \
+  -t ai-agent-box-omp-java:local .
+docker run --rm --entrypoint bash ai-agent-box-omp-java:local \
+  -c 'omp --version && java -version && mvnd --version && python3 --version'
 ```
 
-[`java/java.21.Dockerfile`](java/java.21.Dockerfile) is the same worked
-example pinned to the latest BellSoft Liberica JDK 21 (LTS) build instead of
-25; build it the same way with `-f java/java.21.Dockerfile`.
+The JDK build is pinned by `LIBERICA_VERSION` plus the per-arch
+`LIBERICA_SHA1_*` values in the Dockerfile — override them together (fetch new
+SHA1s from `api.bell-sw.com/v1/liberica/releases`, `arch=x86`/`arch=arm`) to
+move to a different Liberica release. The install path and `JAVA_HOME` are
+hardcoded to `liberica-25`, so rename those too when changing major versions.
 
 ### Verifying a derived image
 
@@ -812,7 +832,7 @@ OpenCode stores provider credentials under
 volume (shown above) or pass keys per-run with `-e`:
 
 ```bash
-docker run -it --rm -v "$PWD:/workspace" -e ANTHROPIC_API_KEY ai-agent-box:1.18.30
+docker run -it --rm -v "$PWD:/workspace" -e ANTHROPIC_API_KEY ai-agent-box-opencode:local
 ```
 
 Note: on native Linux with the recommended `--user "$(id -u):$(id -g)"
@@ -839,7 +859,7 @@ shell startup files is fragile. Instead, pick one of:
 # Forward a variable already exported in your shell (value stays in your
 # shell env, never typed twice, never leaks into container image layers)
 export GITHUB_TOKEN=ghp_xxx
-docker run -it --rm -v "$PWD:/workspace" -e GITHUB_TOKEN ai-agent-box:1.18.30
+docker run -it --rm -v "$PWD:/workspace" -e GITHUB_TOKEN ai-agent-box-opencode:local
 
 # Or collect several secrets into a plain env file (KEY=VALUE per line, no
 # quotes, no `export`, no shell logic) and pass it with --env-file
@@ -852,7 +872,7 @@ chmod 600 ~/.config/ai-agent-box/agent.env
 
 docker run -it --rm -v "$PWD:/workspace" \
   --env-file ~/.config/ai-agent-box/agent.env \
-  ai-agent-box:1.18.30
+  ai-agent-box-opencode:local
 ```
 
 Keep the env file out of version control and readable only by you
