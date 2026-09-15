@@ -268,9 +268,12 @@ supported when changing the runtime stage:
 - `java/java-25.Dockerfile` is the in-repo worked example of this pattern
   (Liberica JDK 25, mvnd, Python 3.13 via pinned, checksum-verified downloads —
   NOT SDKMAN, which is per-user and non-reproducible). The same file builds two
-  images: `ai-agent-box-opencode-java` from the opencode base (default
-  `BASE_USER=opencode`) and `ai-agent-box-omp-java` from the omp base
-  (`BASE_USER=omp`). Verify both after any base change:
+  images: `ai-agent-box-opencode-java` from the opencode base
+  (`BASE_USER=opencode`) and `ai-agent-box-omp-java` from the omp base
+  (`BASE_USER=omp`). `BASE_USER` has no default — it's a mandatory build arg
+  (an early `RUN` fails the build if it's empty), because the runtime user the
+  base image defines differs per variant and there's no safe value to assume.
+  Verify both after any base change:
   `docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
   && docker build -f java/java-25.Dockerfile --build-arg
   BASE_IMAGE=ai-agent-box-opencode:local

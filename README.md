@@ -785,9 +785,10 @@ Build and verify both:
 docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
 docker build -f omp/omp.Dockerfile -t ai-agent-box-omp:local .
 
-# opencode base
+# opencode base — BASE_USER is mandatory and must match the base image's
+# runtime user; the build fails fast if it's omitted.
 docker build -f java/java-25.Dockerfile \
-  --build-arg BASE_IMAGE=ai-agent-box-opencode:local \
+  --build-arg BASE_IMAGE=ai-agent-box-opencode:local --build-arg BASE_USER=opencode \
   -t ai-agent-box-opencode-java:local .
 docker run --rm --entrypoint bash ai-agent-box-opencode-java:local \
   -c 'opencode --version && java -version && mvnd --version && python3 --version'

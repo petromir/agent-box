@@ -8,7 +8,7 @@
 # system-wide — same philosophy as the base image.
 
 # Bump to match the base image tag you built/pulled.
-ARG BASE_IMAGE=ai-agent-box-opencode:latest
+ARG BASE_IMAGE=ai-agent-box-omp:latest
 FROM ${BASE_IMAGE}
 
 # The base image's runtime user is named after its agent (`opencode` in
@@ -44,14 +44,14 @@ RUN apk add --no-cache \
     python-${PYTHON_VERSION} \
     py${PYTHON_VERSION}-pip
 
-# --- Java 25 (BellSoft Liberica JDK, checksum-verified) ---
-# Liberica is not in Wolfi (only upstream openjdk-25 is). BellSoft publishes
+# --- Java 21 (BellSoft Liberica JDK, checksum-verified) ---
+# Liberica is not in Wolfi (only upstream openjdk-21 is). BellSoft publishes
 # tarballs via its GitHub releases; API: api.bell-sw.com/v1/liberica/releases.
 # Rebuilds of the same version can change SHA1, so verify against the value
-# captured when bumping: curl -s 'https://api.bell-sw.com/v1/liberica/releases?version=25.0.4.1&fields=sha1'
-ARG LIBERICA_VERSION=25.0.4.1+1
-ARG LIBERICA_SHA1_AMD64=4fd81f4fb5cbf77006a3973aaf110f8d7968f8dd
-ARG LIBERICA_SHA1_ARM64=bf7f3596ed67f60b55b0c7f10b99b14493c535db
+# captured when bumping: curl -s 'https://api.bell-sw.com/v1/liberica/releases?version=21.0.12.1+1&fields=sha1'
+ARG LIBERICA_VERSION=21.0.12.1+1
+ARG LIBERICA_SHA1_AMD64=351b0fc7ff5f7a0d250b2fc9c4c860ec3662d4de
+ARG LIBERICA_SHA1_ARM64=75c94bdf89d51c3a7e7836f25bf1f64a903bd3b3
 RUN arch="$(uname -m)" && \
     case "$arch" in \
       x86_64)  jdk_arch=amd64; sha="$LIBERICA_SHA1_AMD64" ;; \
@@ -62,12 +62,12 @@ RUN arch="$(uname -m)" && \
     curl -fsSL -o /tmp/liberica.tar.gz \
       "https://github.com/bell-sw/Liberica/releases/download/${LIBERICA_VERSION}/bellsoft-jdk${LIBERICA_VERSION}-linux-${jdk_arch}.tar.gz" && \
     echo "${sha}  /tmp/liberica.tar.gz" | sha1sum -c - && \
-    mkdir -p /usr/lib/jvm/liberica-25 && \
-    tar -xzf /tmp/liberica.tar.gz -C /usr/lib/jvm/liberica-25 --strip-components=1 && \
+    mkdir -p /usr/lib/jvm/liberica-21 && \
+    tar -xzf /tmp/liberica.tar.gz -C /usr/lib/jvm/liberica-21 --strip-components=1 && \
     rm /tmp/liberica.tar.gz
 
-ENV JAVA_HOME=/usr/lib/jvm/liberica-25 \
-    PATH="/usr/lib/jvm/liberica-25/bin:${PATH}"
+ENV JAVA_HOME=/usr/lib/jvm/liberica-21 \
+    PATH="/usr/lib/jvm/liberica-21/bin:${PATH}"
 
 # The JDK ships its own trust store (a copy of cacerts under
 # $JAVA_HOME/lib/security), separate from /etc/ssl/certs/ca-certificates.crt.

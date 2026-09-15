@@ -813,7 +813,7 @@ if want java; then
         have_image "$oc_image" || build_image opencode opencode/opencode.Dockerfile "$oc_image"
         have_image "$omp_image" || build_image omp omp/omp.Dockerfile "$omp_image"
         build_image opencode-java java/java-25.Dockerfile "$oc_java_image" \
-            --build-arg BASE_IMAGE="$oc_image"
+            --build-arg BASE_IMAGE="$oc_image" --build-arg BASE_USER=opencode
         build_image omp-java java/java-25.Dockerfile "$omp_java_image" \
             --build-arg BASE_IMAGE="$omp_image" --build-arg BASE_USER=omp
     fi
