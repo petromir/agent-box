@@ -20,6 +20,38 @@ variant) in an isolated, minimal Wolfi container. They are intentionally tiny:
 There is no application code, no test suite, and no CI pipeline. Changes are
 almost always to the opencode/opencode.Dockerfile or entrypoint script.
 
+## Pinned agent versions
+
+Currently pinned releases (bumped 2026-09-17):
+
+- OpenCode `1.18.31` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
+  (plain `x.y.z`, no `v` prefix; the installer is fed
+  `VERSION=${OPENCODE_VERSION}`).
+- omp `v18.2.4` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
+  prefix; passed to the installer as `--ref ${OMP_VERSION}`). The asymmetry
+  is intentional: registry tags keep each ARG value exactly as-is (see
+  `docs/image-naming.md`).
+
+A version bump MUST update every location carrying the number in one change:
+
+1. `opencode/opencode.Dockerfile` — `ARG OPENCODE_VERSION` **and** the
+   `ARG VERSION` OCI-label default (must match).
+2. `omp/omp.Dockerfile` — `ARG OMP_VERSION` **and** the `ARG VERSION`
+   OCI-label default (must match).
+3. `Makefile` — the local image tags (`ai-agent-box-opencode:<x.y.z>`,
+   `ai-agent-box-omp:<x.y.z>`, no `v` prefix there) and every `BASE_IMAGE=`
+   reference to them in the derived java/graalvm build lines.
+4. This section — these pins are the documented record; update the versions
+   and the bump date.
+5. `README.md` "How big is it?" — the dated size snapshot names the release
+   it measured; touch it only when actually re-measuring against a fresh
+   build, never by rewriting the version string of an old measurement.
+
+Keep the `ARG <NAME>_VERSION` lines line-initial and single-line: the CI
+publish job extracts them with `sed` (see "CI workflow parses the Dockerfile
+pins" below). After bumping, verify per "Verify every change" — a full
+`tests/run-tests.sh` run covers both images and the derived java variants.
+
 ## Verify every change
 
 Any opencode/opencode.Dockerfile or entrypoint change MUST be verified by actually building and

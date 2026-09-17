@@ -604,13 +604,13 @@ Three traps when reading those numbers:
   the arch with the number. Proof from the pinned ShellCheck v0.11.0 assets:
   16,213,136 bytes (x86_64) vs 55,043,352 bytes (aarch64) — 3.4x apart.
 
-Snapshot of one build (arm64, `OPENCODE_VERSION=1.18.30`, measured 2026-09-11)
+Snapshot of one build (arm64, `OPENCODE_VERSION=1.18.31`, measured 2026-09-17)
 so you know what to expect before you measure — re-run the commands rather than
 quoting this table:
 
 | Layer | Size | Share |
 |-------|------|-------|
-| `opencode` binary (official installer) | 184 MB | ~48% |
+| `opencode` binary (official installer) | 185 MB | ~48% |
 | `apk add` set (bash, git, openssh, setpriv, ripgrep, jq, yq, patch, diffutils, docker-cli) | 119 MB | ~31% |
 | `shellcheck` static binary | 55 MB | ~14% |
 | `fff-mcp` static binary | 10.8 MB | ~3% |
