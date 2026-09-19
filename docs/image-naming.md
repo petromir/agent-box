@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document compares two ways to publish the `ai-agent-box` variants to a
+This document compares two ways to publish the `agent-box` variants to a
 container registry. It does not cover the short local build tags
-(`ai-agent-box-opencode:local`, `ai-agent-box-omp:local`, and the two
+(`agent-box-opencode:local`, `agent-box-omp:local`, and the two
 `*-java:local` tags).
 
 ## Terms
@@ -14,7 +14,7 @@ An image reference has this shape:
     [registry/]namespace/repository[:tag]
 
 - **Repository name** (also called image name) — the part before the colon,
-  for example `ai-agent-box-omp`.
+  for example `agent-box-omp`.
 - **Tag** — the part after the colon, for example `<omp-version>`.
 - **`latest`** — the default tag. A registry uses it when you pull an image
   without a tag.
@@ -39,17 +39,17 @@ document.
 
 ### Option 1 — variant in the repository name
 ```
-ai-agent-box-opencode:<opencode-version>
-ai-agent-box-omp:<omp-version>
-ai-agent-box-opencode-java:<jdk-major>
-ai-agent-box-omp-java:<jdk-major>
+agent-box-opencode:<opencode-version>
+agent-box-omp:<omp-version>
+agent-box-opencode-java:<jdk-major>
+agent-box-omp-java:<jdk-major>
 ```
 ### Option 2 — variant in the tag
 ```
-ai-agent-box:opencode.<opencode-version>
-ai-agent-box:omp.<omp-version>
-ai-agent-box:opencode.java.<jdk-major>
-ai-agent-box:omp.java.<jdk-major>
+agent-box:opencode.<opencode-version>
+agent-box:omp.<omp-version>
+agent-box:opencode.java.<jdk-major>
+agent-box:omp.java.<jdk-major>
 ```
 ## Option 1 — pros and cons
 
@@ -58,8 +58,8 @@ ai-agent-box:omp.java.<jdk-major>
 - **Clean version tags.** The tag stays a plain version
   (for example `<omp-version>`). Every tool that reads a version — Renovate,
   Dependabot, Compose, Kubernetes — reads it without a special grammar.
-- **One unambiguous `latest` per variant.** `ai-agent-box-omp:latest` and
-  `ai-agent-box-opencode:latest` are different images. No conflict.
+- **One unambiguous `latest` per variant.** `agent-box-omp:latest` and
+  `agent-box-opencode:latest` are different images. No conflict.
 - **Independent `latest` updates.** You can promote one variant without
   touching the others.
 - **Per-variant registry settings.** You can set a different description,
@@ -82,10 +82,10 @@ ai-agent-box:omp.java.<jdk-major>
 - **Discoverability is split.** A user must know the variant names. There is
   no single page that lists all variants.
 - **Renaming the base breaks callers.** Renaming the opencode image from
-  `ai-agent-box` to `ai-agent-box-opencode` breaks existing `docker pull`
+  `agent-box` to `agent-box-opencode` breaks existing `docker pull`
   commands and pinned references.
 - **The derived image needs the right base name.** The CI step for
-  `ai-agent-box-omp-java` must reference the exact base repository and tag.
+  `agent-box-omp-java` must reference the exact base repository and tag.
 
 ## Option 2 — pros and cons
 
@@ -97,14 +97,14 @@ ai-agent-box:omp.java.<jdk-major>
   scanner configuration.
 - **One buildx cache scope.** Buildx can share layers between variants more
   easily.
-- **Simple pull URL shape.** `docker pull namespace/ai-agent-box:TAG` never
+- **Simple pull URL shape.** `docker pull namespace/agent-box:TAG` never
   changes the repository part.
 - **Cheap to add a variant.** A new agent is a new tag, not a new repository.
 
 ### Cons
 
 - **The tag grammar is ambiguous.** A dot `.` is a legal tag character and
-  also a version separator. `ai-agent-box:omp.java.<jdk-major>` cannot be split
+  also a version separator. `agent-box:omp.java.<jdk-major>` cannot be split
   safely: a script cannot tell whether the last field is a Java version or a
   patch level.
 - **Only one `latest`.** One repository has one `latest`. It can describe only
@@ -155,13 +155,13 @@ Reasons, in order of weight:
 
 | Variant | Repository | Tag |
 |---------|-----------|-----|
-| OpenCode | `ai-agent-box-opencode` | `<opencode-version>` |
-| omp | `ai-agent-box-omp` | `<omp-version>` |
-| Java on the opencode base | `ai-agent-box-opencode-java` | `<jdk-major>` |
-| Java on omp | `ai-agent-box-omp-java` | `<jdk-major>` |
+| OpenCode | `agent-box-opencode` | `<opencode-version>` |
+| omp | `agent-box-omp` | `<omp-version>` |
+| Java on the opencode base | `agent-box-opencode-java` | `<jdk-major>` |
+| Java on omp | `agent-box-omp-java` | `<jdk-major>` |
 
-This is the scheme the repository uses. The old short name `ai-agent-box` is
-gone: it is renamed to `ai-agent-box-opencode`. That breaks existing pull
+This is the scheme the repository uses. The old short name `agent-box` is
+gone: it is renamed to `agent-box-opencode`. That breaks existing pull
 commands and pinned references. The project accepted that one-time cost in
 exchange for separate `latest` tags and per-variant registry settings.
 
@@ -169,9 +169,9 @@ exchange for separate `latest` tags and per-variant registry settings.
 
 Apply these rules with either option.
 
-- **Let the repository name show the real base.** `ai-agent-box-omp-java` says
+- **Let the repository name show the real base.** `agent-box-omp-java` says
   the Java layer sits on omp. If the Java image derives from the opencode base,
-  name it `ai-agent-box-opencode-java`.
+  name it `agent-box-opencode-java`.
 - **Keep the tag exactly as the Dockerfile `ARG` holds.** opencode stores a
   plain `x.y.z` in `OPENCODE_VERSION` (no `v` prefix). omp stores a `vX.Y.Z`
   value in `OMP_VERSION` (with the `v` prefix). Do not add or drop a `v` in the
@@ -202,10 +202,10 @@ variant owns `latest`.
 ## User notes
 
 - **Option 1** — the user picks the agent first, then the version:
-  `docker run namespace/ai-agent-box-omp:<omp-version>`. The reference reads
+  `docker run namespace/agent-box-omp:<omp-version>`. The reference reads
   like a product and a release.
 - **Option 2** — the user must remember one repository and a tag grammar:
-  `docker run namespace/ai-agent-box:omp.java.<jdk-major>`. This is short only
+  `docker run namespace/agent-box:omp.java.<jdk-major>`. This is short only
   if the user already knows the grammar.
 
 ## Decision checklist

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Test suite for the ai-agent-box images.
+# Test suite for the agent-box images.
 #
 # Automates the AGENTS.md "Verify every change" checklist:
 #
-#   opencode image (ai-agent-box-opencode:local)
+#   opencode image (agent-box-opencode:local)
 #     - build
 #     - bundled shellcheck: pinned version runs, flags a known issue, passes a
 #       clean script, and its GPLv3 license text + source pointer ship in the
@@ -28,7 +28,7 @@
 #       same uid without gid 0 in any form cannot write (negative control);
 #       the recipe works with --cap-drop=ALL + --read-only (--user 0 cannot);
 #       ssh/whoami resolve the uid via the entrypoint's passwd self-heal
-#   omp image (ai-agent-box-omp:local)
+#   omp image (agent-box-omp:local)
 #     - build
 #     - bundled shellcheck: same checks as the opencode image
 #     - default (non-root) path: --version prints omp/<release>
@@ -40,9 +40,9 @@
 #     - hardening: same checks as the opencode image
 #     - arbitrary-uid path: same checks as the opencode image, for
 #       ~/.omp and ~/.omp/agent
-#   opencode-java image (ai-agent-box-opencode-java:local, derived from
-#   ai-agent-box-opencode:local)
-#     - build with BASE_IMAGE=ai-agent-box-opencode:local
+#   opencode-java image (agent-box-opencode-java:local, derived from
+#   agent-box-opencode:local)
+#     - build with BASE_IMAGE=agent-box-opencode:local
 #     - default path: opencode --version plus java/mvnd/python3 toolchain
 #     - bundled shellcheck: same checks as the opencode image (inherited)
 #     - uid-adaptation path (legacy --user 0)
@@ -50,9 +50,9 @@
 #     - hardening: same checks as the opencode image (the arbitrary-uid path
 #       is not re-tested here — it lives entirely in the inherited base-image
 #       entrypoint/Dockerfile layout, already covered by the opencode checks)
-#   omp-java image (ai-agent-box-omp-java:local, derived from
-#   ai-agent-box-omp:local with BASE_USER=omp)
-#     - build with BASE_IMAGE=ai-agent-box-omp:local BASE_USER=omp
+#   omp-java image (agent-box-omp-java:local, derived from
+#   agent-box-omp:local with BASE_USER=omp)
+#     - build with BASE_IMAGE=agent-box-omp:local BASE_USER=omp
 #     - default path: omp --version plus java/mvnd/python3 toolchain
 #     - bundled shellcheck: same checks as the omp image (inherited)
 #     - uid-adaptation path (legacy --user 0) against ~/.omp and ~/.omp/agent
@@ -78,10 +78,10 @@ set -uo pipefail
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 
-oc_image=ai-agent-box-opencode:local
-omp_image=ai-agent-box-omp:local
-oc_java_image=ai-agent-box-opencode-java:local
-omp_java_image=ai-agent-box-omp-java:local
+oc_image=agent-box-opencode:local
+omp_image=agent-box-omp:local
+oc_java_image=agent-box-opencode-java:local
+omp_java_image=agent-box-omp-java:local
 
 # Unusual ports so the suite does not clash with a locally running server.
 oc_serve_port=14096
@@ -94,7 +94,7 @@ oc_java_override_port=14099
 shellcheck_version=0.11.0
 
 run_id=$$
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/ai-agent-box-tests.XXXXXX")
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/agent-box-tests.XXXXXX")
 
 skip_build=0
 keep=0
@@ -388,7 +388,7 @@ test_hardened_default() {
     out=$(docker run --rm \
         --cap-drop=ALL --security-opt=no-new-privileges \
         --read-only --tmpfs /tmp:rw,nosuid,nodev \
-        --tmpfs /home/ai-agent-box:rw,nosuid,nodev,uid=10001,gid=10001 \
+        --tmpfs /home/agent-box:rw,nosuid,nodev,uid=10001,gid=10001 \
         -v "$repo_root:/workspace:ro" \
         "$image" --version 2>&1); rc=$?
     assert_exit0 "$label: hardened default (cap-drop=ALL, read-only, no-new-privileges)" "$rc" "$out"
@@ -471,7 +471,7 @@ test_opencode_arbitrary_uid_hardened() {
         --read-only --cap-drop=ALL --security-opt=no-new-privileges \
         --user 999:0 \
         --tmpfs /tmp:rw,nosuid,nodev \
-        --tmpfs /home/ai-agent-box:rw,nosuid,nodev,uid=999,gid=0,mode=0770 \
+        --tmpfs /home/agent-box:rw,nosuid,nodev,uid=999,gid=0,mode=0770 \
         -v "$work_dir/fake-write-opencode.sh:/usr/local/bin/opencode:ro" \
         "$sim" --version 2>&1); rc=$?
     assert_exit0 "opencode: arbitrary-uid hardened (no caps, read-only)" "$rc" "$out"
@@ -547,7 +547,7 @@ test_omp_arbitrary_uid_hardened() {
         --read-only --cap-drop=ALL --security-opt=no-new-privileges \
         --user 999:0 \
         --tmpfs /tmp:rw,nosuid,nodev \
-        --tmpfs /home/ai-agent-box:rw,nosuid,nodev,uid=999,gid=0,mode=0770 \
+        --tmpfs /home/agent-box:rw,nosuid,nodev,uid=999,gid=0,mode=0770 \
         -v "$work_dir/fake-write-omp.sh:/usr/local/bin/omp:ro" \
         "$sim" --version 2>&1); rc=$?
     assert_exit0 "omp: arbitrary-uid hardened (no caps, read-only)" "$rc" "$out"
@@ -632,7 +632,7 @@ test_omp_adaptation() {
 test_omp_mounted_home() {
     local sim="sim-omp:$run_id" host_dir="$work_dir/mount-omp-home" out rc
     mkdir -p "$host_dir"
-    out=$(docker run --rm --user 0 -v "$host_dir:/home/ai-agent-box/.omp" "$sim" --version 2>&1); rc=$?
+    out=$(docker run --rm --user 0 -v "$host_dir:/home/agent-box/.omp" "$sim" --version 2>&1); rc=$?
     assert_exit0 "omp: mounted ~/.omp run exits 0" "$rc" "$out"
     assert_contains "omp: mounted ~/.omp still adapts" "$out" "adapting uid/gid"
     if [ -e "$host_dir/agent" ]; then
@@ -649,7 +649,7 @@ test_omp_mounted_agent() {
     mkdir -p "$host_dir"
     out=$(docker run --rm --user 0 \
         -v "$work_dir/fake-readonly.sh:/usr/local/bin/omp:ro" \
-        -v "$host_dir:/home/ai-agent-box/.omp/agent" \
+        -v "$host_dir:/home/agent-box/.omp/agent" \
         "$sim" --version 2>&1); rc=$?
     assert_exit0 "omp: mounted ~/.omp/agent run exits 0" "$rc" "$out"
     assert_contains "omp: mounted ~/.omp/agent still adapts" "$out" "adapting uid/gid"
@@ -666,7 +666,7 @@ test_omp_mounted_agent() {
 test_omp_nonroot_mounted_home() {
     local host_dir="$work_dir/mount-omp-nonroot" out rc
     mkdir -p "$host_dir"
-    out=$(docker run --rm -v "$host_dir:/home/ai-agent-box/.omp" "$omp_image" --version 2>&1); rc=$?
+    out=$(docker run --rm -v "$host_dir:/home/agent-box/.omp" "$omp_image" --version 2>&1); rc=$?
     assert_exit0 "omp: non-root with mounted ~/.omp does not abort" "$rc" "$out"
     assert_contains "omp: non-root mounted run prints version" "$out" "omp/"
 }

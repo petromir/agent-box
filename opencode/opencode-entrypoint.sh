@@ -16,7 +16,7 @@
 set -euo pipefail
 
 readonly mount_dir=/workspace
-readonly home_dir=/home/ai-agent-box
+readonly home_dir=/home/agent-box
 readonly docker_sock=/var/run/docker.sock
 
 log() { printf 'entrypoint: %s\n' "$*" >&2; }

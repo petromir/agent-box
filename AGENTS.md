@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-`ai-agent-box` is a family of Docker images that run the
+`agent-box` is a family of Docker images that run the
 [OpenCode](https://opencode.ai) AI coding agent (and the [omp](https://omp.sh)
 variant) in an isolated, minimal Wolfi container. They are intentionally tiny:
 
@@ -38,8 +38,8 @@ A version bump MUST update every location carrying the number in one change:
    `ARG VERSION` OCI-label default (must match).
 2. `omp/omp.Dockerfile` — `ARG OMP_VERSION` **and** the `ARG VERSION`
    OCI-label default (must match).
-3. `Makefile` — the local image tags (`ai-agent-box-opencode:<x.y.z>`,
-   `ai-agent-box-omp:<x.y.z>`, no `v` prefix there) and every `BASE_IMAGE=`
+3. `Makefile` — the local image tags (`agent-box-opencode:<x.y.z>`,
+   `agent-box-omp:<x.y.z>`, no `v` prefix there) and every `BASE_IMAGE=`
    reference to them in the derived java/graalvm build lines.
 4. This section — these pins are the documented record; update the versions
    and the bump date.
@@ -60,14 +60,14 @@ all checks below (`--skip-build` reuses built images, `--only opencode,omp,java`
 runs a subset); prefer it over running the commands by hand:
 
 ```bash
-docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
+docker build -f opencode/opencode.Dockerfile -t agent-box-opencode:local .
 
 # 1. Default (non-root) path
-docker run --rm ai-agent-box-opencode:local --version
+docker run --rm agent-box-opencode:local --version
 
 # 2. Root/uid-adaptation path: create a repo owned by a non-10001 uid
 #    (chown it to 999), then:
-docker run --rm --user 0 -v /path/to/repo:/workspace ai-agent-box-opencode:local --version
+docker run --rm --user 0 -v /path/to/repo:/workspace agent-box-opencode:local --version
 # and confirm "adapting uid/gid..." appears on stderr, and inside the
 # container `git -C /workspace status` succeeds and the adapted user can
 # write to ~/.config/opencode (e.g. `touch` a file there as the user).
@@ -75,11 +75,11 @@ docker run --rm --user 0 -v /path/to/repo:/workspace ai-agent-box-opencode:local
 # 3. Serve path: the entrypoint injects --hostname 0.0.0.0 for the `serve`
 #    subcommand so a published port reaches the server. Confirm health, and
 #    that an explicit --hostname override is honored.
-docker run --rm -d -p 4096:4096 --name opencode-server ai-agent-box-opencode:local serve
+docker run --rm -d -p 4096:4096 --name opencode-server agent-box-opencode:local serve
 curl -s http://localhost:4096/global/health   # {"healthy":true,"version":"..."}
 docker rm -f opencode-server   # opencode serve ignores SIGTERM/SIGINT; rm -f force-kills
 # Override must bind loopback (unreachable from host via -p):
-docker run --rm -d -p 4097:4097 --name oc-lb ai-agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
+docker run --rm -d -p 4097:4097 --name oc-lb agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
 curl -s --max-time 3 http://localhost:4097/global/health || echo unreachable-as-expected
 docker rm -f oc-lb
 
@@ -87,12 +87,12 @@ docker rm -f oc-lb
 #    README "Why gid 0?" and "On native Linux"): an
 #    arbitrary uid with gid 0 can write the home tree and use git with NO
 #    uid/gid rewrite and NO root at any point.
-docker run --rm --user 999:0 ai-agent-box-opencode:local --version
+docker run --rm --user 999:0 agent-box-opencode:local --version
 # same uid WITHOUT gid 0 in any form must NOT be able to write:
-docker run --rm --user 999:999 --entrypoint sh ai-agent-box-opencode:local \
+docker run --rm --user 999:999 --entrypoint sh agent-box-opencode:local \
   -c 'touch "$HOME/.config/opencode/.probe" && echo OK || echo FAIL-as-expected'
 # the zero-`--user` default must stay byte-for-byte unchanged (uid=10001 gid=10001):
-docker run --rm --entrypoint sh ai-agent-box-opencode:local -c 'id -u; id -g'
+docker run --rm --entrypoint sh agent-box-opencode:local -c 'id -u; id -g'
 ```
 
 The omp variant carries the same obligation (there is no serve check — omp has
@@ -100,21 +100,21 @@ no HTTP server; its entry points are the TUI, one-shot `-p`, RPC, and ACP over
 stdio):
 
 ```bash
-docker build -f omp/omp.Dockerfile -t ai-agent-box-omp:local .
+docker build -f omp/omp.Dockerfile -t agent-box-omp:local .
 
 # 1. Default (non-root) path
-docker run --rm ai-agent-box-omp:local --version   # omp/<version>
+docker run --rm agent-box-omp:local --version   # omp/<version>
 
 # 2. Root/uid-adaptation path: same foreign-uid setup as above, then:
-docker run --rm --user 0 -v /path/to/repo:/workspace ai-agent-box-omp:local --version
+docker run --rm --user 0 -v /path/to/repo:/workspace agent-box-omp:local --version
 # and confirm "adapting uid/gid..." appears on stderr and the adapted user
 # can write to ~/.omp and ~/.omp/agent (e.g. `touch` a file there as the user).
 
 # 3. Arbitrary-uid path (same rationale as opencode above):
-docker run --rm --user 999:0 ai-agent-box-omp:local --version
-docker run --rm --user 999:999 --entrypoint sh ai-agent-box-omp:local \
+docker run --rm --user 999:0 agent-box-omp:local --version
+docker run --rm --user 999:999 --entrypoint sh agent-box-omp:local \
   -c 'touch "$HOME/.omp/.probe" && echo OK || echo FAIL-as-expected'
-docker run --rm --entrypoint sh ai-agent-box-omp:local -c 'id -u; id -g'
+docker run --rm --entrypoint sh agent-box-omp:local -c 'id -u; id -g'
 ```
 
 CI runs the same suite for you: `.github/workflows/docker.yml` executes
@@ -167,7 +167,7 @@ Watch for silent regressions in:
 - **opencode install path** — the installer writes to `$HOME/.opencode/bin`;
   the builder stage pins `ENV HOME=/root` so the `COPY --from=builder` path
   is deterministic.
-- **Home/config ownership** — the runtime home is `/home/ai-agent-box`
+- **Home/config ownership** — the runtime home is `/home/agent-box`
   (keep `adduser -h`, `mkdir`/`chown`, `ENV HOME` in the opencode/opencode.Dockerfile and
   `home_dir` in the entrypoint in sync). The image owns the whole `$HOME`
   tree (and `/workspace`) as `<user>:0` with `chmod g=u` + setgid directories
@@ -251,12 +251,12 @@ Watch for silent regressions in:
   row points at "How big is it?", which publishes the `docker images` /
   `docker history` commands instead. Keep it that way; a dated snapshot inside
   that section must say which arch and release it measured.
-- Do not hardcode a release tag (`ai-agent-box:<x.y.z>`,
-  `ai-agent-box:v<x.y.z>`) in `README.md` or this file. It goes stale on every
+- Do not hardcode a release tag (`agent-box:<x.y.z>`,
+  `agent-box:v<x.y.z>`) in `README.md` or this file. It goes stale on every
   `OPENCODE_VERSION`/`OMP_VERSION` bump and fails silently (the old tag stays
   pullable). Use the stable local tags `tests/run-tests.sh` consumes
-  (`ai-agent-box-opencode:local`, `ai-agent-box-omp:local`,
-  `ai-agent-box-opencode-java:local`, `ai-agent-box-omp-java:local`) or an
+  (`agent-box-opencode:local`, `agent-box-omp:local`,
+  `agent-box-opencode-java:local`, `agent-box-omp-java:local`) or an
   `<x.y.z>` placeholder in "pin a different release" examples. A dated,
   release-labelled snapshot in "How big is it?" is the one allowed exception.
 - Comments in the opencode/opencode.Dockerfile explain *why*, not *what*; keep them when
@@ -266,7 +266,7 @@ Watch for silent regressions in:
 
 ## Extending this image as a base
 
-Users may build their own Dockerfile with `FROM ai-agent-box-opencode:<tag-or-digest>`
+Users may build their own Dockerfile with `FROM agent-box-opencode:<tag-or-digest>`
 to layer extra tools (e.g. Python, Java, Maven) on top. Keep this workflow
 supported when changing the runtime stage:
 
@@ -281,14 +281,14 @@ supported when changing the runtime stage:
   set (e.g. `JAVA_HOME` for Maven). The README's derived-image example sets
   these; keep it accurate if the base image's paths or layout change.
 - Language build caches (Maven `.m2`, pip `.cache/pip`, Gradle `.gradle`)
-  land in `$HOME` — keep `$HOME=/home/ai-agent-box` writable and owned by
+  land in `$HOME` — keep `$HOME=/home/agent-box` writable and owned by
   the runtime user so these work without extra setup.
 - `ENTRYPOINT`/`CMD` are inherited by derived images automatically; do not
   add logic to this repo's `opencode/opencode-entrypoint.sh` that assumes it is always the
   final image (e.g. do not hardcode a package list check) — a derived image
   adding tools must not break the base entrypoint's uid-adaptation or serve
   hostname-injection behavior.
-- Anything a derived Dockerfile adds under `/home/ai-agent-box` must be
+- Anything a derived Dockerfile adds under `/home/agent-box` must be
   `chown`ed to `opencode:0` with `chmod g=u` (matching this repo's own
   arbitrary-uid pattern — see "Home/config ownership" above), not
   `opencode:opencode`, or the arbitrary-uid recipe can't write it even
@@ -300,18 +300,18 @@ supported when changing the runtime stage:
 - `java/java-25.Dockerfile` is the in-repo worked example of this pattern
   (Liberica JDK 25, mvnd, Python 3.13 via pinned, checksum-verified downloads —
   NOT SDKMAN, which is per-user and non-reproducible). The same file builds two
-  images: `ai-agent-box-opencode-java` from the opencode base
-  (`BASE_USER=opencode`) and `ai-agent-box-omp-java` from the omp base
+  images: `agent-box-opencode-java` from the opencode base
+  (`BASE_USER=opencode`) and `agent-box-omp-java` from the omp base
   (`BASE_USER=omp`). `BASE_USER` has no default — it's a mandatory build arg
   (an early `RUN` fails the build if it's empty), because the runtime user the
   base image defines differs per variant and there's no safe value to assume.
   Verify both after any base change:
-  `docker build -f opencode/opencode.Dockerfile -t ai-agent-box-opencode:local .
+  `docker build -f opencode/opencode.Dockerfile -t agent-box-opencode:local .
   && docker build -f java/java-25.Dockerfile --build-arg
-  BASE_IMAGE=ai-agent-box-opencode:local
-  --build-arg BASE_USER=opencode -t ai-agent-box-opencode-java:local .`, then
-  the omp variant with `--build-arg BASE_IMAGE=ai-agent-box-omp:local
-  --build-arg BASE_USER=omp -t ai-agent-box-omp-java:local`, and run the same
+  BASE_IMAGE=agent-box-opencode:local
+  --build-arg BASE_USER=opencode -t agent-box-opencode-java:local .`, then
+  the omp variant with `--build-arg BASE_IMAGE=agent-box-omp:local
+  --build-arg BASE_USER=omp -t agent-box-omp-java:local`, and run the same
   default/uid-adaptation/hardening checks against each (the opencode-java image
   also has the serve path; omp has no HTTP server). `BASE_USER` must name the
   runtime user the base image defines, because the final `USER` is that build

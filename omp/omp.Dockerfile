@@ -115,7 +115,7 @@ ARG VERSION=v18.2.4
 LABEL org.opencontainers.image.title="omp (Oh-My-Pi)" \
       org.opencontainers.image.description="AI coding agent with the IDE wired in, installed via the official installer." \
       org.opencontainers.image.authors="Petromir Dzhunev" \
-      org.opencontainers.image.source="https://github.com/petromir/ai-agent-box" \
+      org.opencontainers.image.source="https://github.com/petromir/agent-box" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
@@ -175,11 +175,11 @@ RUN apk add --no-cache \
 # own primary group stays `omp` (gid 10001), so the zero-`--user` default is
 # unaffected — only the *directory* group ownership changes.
 RUN addgroup -g 10001 -S omp && \
-    adduser -u 10001 -S -G omp -h /home/ai-agent-box omp && \
-    mkdir -p /workspace /home/ai-agent-box/.omp/agent && \
-    chown -R omp:0 /workspace /home/ai-agent-box/.omp && \
-    chmod -R g=u /workspace /home/ai-agent-box/.omp && \
-    find /workspace /home/ai-agent-box/.omp -type d -exec chmod g+s {} +
+    adduser -u 10001 -S -G omp -h /home/agent-box omp && \
+    mkdir -p /workspace /home/agent-box/.omp/agent && \
+    chown -R omp:0 /workspace /home/agent-box/.omp && \
+    chmod -R g=u /workspace /home/agent-box/.omp && \
+    find /workspace /home/agent-box/.omp -type d -exec chmod g+s {} +
 
 # Bakes git's trust for any workspace this container ever operates on — the
 # whole point of this image is running against foreign-owned bind mounts —
@@ -226,7 +226,7 @@ COPY --from=builder --chown=root:root --chmod=644 /tmp/shellcheck-out/LICENSE.tx
 # one-shot `-p`, RPC, and ACP over stdio — so there is no port to document
 # (unlike the opencode image's 4096).
 
-ENV HOME=/home/ai-agent-box
+ENV HOME=/home/agent-box
 
 WORKDIR /workspace
 

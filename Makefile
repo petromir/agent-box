@@ -14,13 +14,13 @@ CA_SECRET =
 endif
 
 oc-docker:
-	docker build --no-cache -f opencode/opencode.Dockerfile $(CA_SECRET) -t ai-agent-box-opencode:1.18.31 .
-	docker build --no-cache -f java/java-21.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=ai-agent-box-opencode:1.18.31 -t ai-agent-box-opencode-java:21 .
-	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=ai-agent-box-opencode:1.18.31 -t ai-agent-box-opencode-java:25 .
-	docker build --no-cache -f java/graalvm-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=ai-agent-box-opencode:1.18.31 -t ai-agent-box-opencode-graalvm:25 .
+	docker build --no-cache -f opencode/opencode.Dockerfile $(CA_SECRET) -t agent-box-opencode:1.18.31 .
+	docker build --no-cache -f java/java-21.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=agent-box-opencode:1.18.31 -t agent-box-opencode-java:21 .
+	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=agent-box-opencode:1.18.31 -t agent-box-opencode-java:25 .
+	docker build --no-cache -f java/graalvm-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=opencode --build-arg BASE_IMAGE=agent-box-opencode:1.18.31 -t agent-box-opencode-graalvm:25 .
 
 omp-docker:
-	docker build --no-cache -f omp/omp.Dockerfile $(CA_SECRET) -t ai-agent-box-omp:18.2.4 .
-	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=ai-agent-box-omp:18.2.4 -t ai-agent-box-omp-java:21 .
-	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=ai-agent-box-omp:18.2.4 -t ai-agent-box-omp-java:25 .
-	docker build --no-cache -f java/graalvm-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=ai-agent-box-omp:18.2.4 -t ai-agent-box-omp-graalvm:25 .
+	docker build --no-cache -f omp/omp.Dockerfile $(CA_SECRET) -t agent-box-omp:18.2.4 .
+	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=agent-box-omp:18.2.4 -t agent-box-omp-java:21 .
+	docker build --no-cache -f java/java-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=agent-box-omp:18.2.4 -t agent-box-omp-java:25 .
+	docker build --no-cache -f java/graalvm-25.Dockerfile $(CA_SECRET) --build-arg BASE_USER=omp --build-arg BASE_IMAGE=agent-box-omp:18.2.4 -t agent-box-omp-graalvm:25 .

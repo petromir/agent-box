@@ -110,7 +110,7 @@ container boundary does not. These work even if every config guard fails:
    ```bash
    docker run --rm --memory 2g --cpus 2 \
      -v "$PWD:/workspace" \
-     ai-agent-box run --auto "task description"
+     agent-box run --auto "task description"
    ```
 
    - `--network none` cuts token spend at the source (no API calls) — only
@@ -135,7 +135,7 @@ docker run --rm \
   -e OPENCODE_PERMISSION='{"question":"deny","external_directory":"deny","doom_loop":"deny"}' \
   -e OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX=8192 \
   -v "$PWD:/workspace" \
-  ai-agent-box run --auto "Fix the failing tests in src/"
+  agent-box run --auto "Fix the failing tests in src/"
 ```
 
 Three independent circuit breakers, in order of precision:
@@ -152,7 +152,7 @@ Three independent circuit breakers, in order of precision:
   the Dockerfile — these have moved between releases.
 - `deny` rules in a mounted `opencode.json` are only as strong as the
   agent's inability to edit that file. Mount it read-only
-  (`-v ./opencode.json:/home/ai-agent-box/.config/opencode/opencode.json:ro`)
+  (`-v ./opencode.json:/home/agent-box/.config/opencode/opencode.json:ro`)
   if you do not trust the agent around its own config.
 - `OPENCODE_EXPERIMENTAL_*` variables are experimental and may change or
   be removed between OpenCode releases; re-check them on version bumps.

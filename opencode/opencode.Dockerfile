@@ -112,7 +112,7 @@ ARG VERSION=1.18.31
 LABEL org.opencontainers.image.title="OpenCode" \
       org.opencontainers.image.description="AI coding agent for the terminal, installed via the official installer." \
       org.opencontainers.image.authors="Petromir Dzhunev" \
-      org.opencontainers.image.source="https://github.com/petromir/ai-agent-box" \
+      org.opencontainers.image.source="https://github.com/petromir/agent-box" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
@@ -177,12 +177,12 @@ RUN apk add --no-cache \
 # 10001), so the zero-`--user` default is unaffected — only the *directory*
 # group ownership changes.
 RUN addgroup -g 10001 -S opencode && \
-    adduser -u 10001 -S -G opencode -h /home/ai-agent-box opencode && \
-    mkdir -p /workspace /home/ai-agent-box/.config/opencode \
-             /home/ai-agent-box/.local/share/opencode && \
-    chown -R opencode:0 /workspace /home/ai-agent-box && \
-    chmod -R g=u /workspace /home/ai-agent-box && \
-    find /workspace /home/ai-agent-box -type d -exec chmod g+s {} +
+    adduser -u 10001 -S -G opencode -h /home/agent-box opencode && \
+    mkdir -p /workspace /home/agent-box/.config/opencode \
+             /home/agent-box/.local/share/opencode && \
+    chown -R opencode:0 /workspace /home/agent-box && \
+    chmod -R g=u /workspace /home/agent-box && \
+    find /workspace /home/agent-box -type d -exec chmod g+s {} +
 
 # Bakes git's trust for any workspace this container ever operates on — the
 # whole point of this image is running against foreign-owned bind mounts —
@@ -229,7 +229,7 @@ COPY --from=builder --chown=root:root --chmod=644 /tmp/shellcheck-out/LICENSE.tx
 # publish — use `docker run -p 4096:4096` to expose it on the host).
 EXPOSE 4096
 
-ENV HOME=/home/ai-agent-box
+ENV HOME=/home/agent-box
 
 WORKDIR /workspace
 

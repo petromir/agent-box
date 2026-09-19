@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `ai-agent-box` images ship the `docker` **client** only and document
+The `agent-box` images ship the `docker` **client** only and document
 Docker-outside-of-Docker (mounting the host socket) as a last resort, because
 that mount is equivalent to root on the Docker host (see README, "Never mount /
 never pass"). This document researches the alternatives: how an agent running
@@ -171,7 +171,7 @@ surrenders capabilities, devices, and `/proc` masking as well.
 
 ### The recommended shape for this repo: a sidecar, not a fatter image
 
-Do **not** add `dockerd` to `ai-agent-box-*`. Keep the agent image as it is
+Do **not** add `dockerd` to `agent-box-*`. Keep the agent image as it is
 (client only) and run the daemon in its own container:
 
 ```bash
@@ -192,7 +192,7 @@ docker run -it --rm --network agentbox-net \
   --cap-drop=ALL --security-opt=no-new-privileges \
   -e DOCKER_HOST=tcp://docker:2375 \
   -v "$PWD:/workspace" \
-  ai-agent-box-opencode:local
+  agent-box-opencode:local
 ```
 
 Verified with `docker:29-cli` standing in for the agent image (same
@@ -315,9 +315,9 @@ an agent that only has to prove a Dockerfile builds.
    wording — mounted socket = host root — and do not let a filtering proxy
    soften it.
 
-## Applying Option 5 to a real invocation (`ai-agent-box-omp-java`)
+## Applying Option 5 to a real invocation (`agent-box-omp-java`)
 
-Everything below was verified with the actual image (`ai-agent-box-omp-java:21`,
+Everything below was verified with the actual image (`agent-box-omp-java:21`,
 `docker-cli 29.8.0`) against a rootless sidecar, with the agent container
 keeping `--cap-drop=ALL --security-opt=no-new-privileges --pids-limit=512`.
 
@@ -376,13 +376,13 @@ docker run -it --rm \
     -e DOCKER_TLS_VERIFY=1 \
     -e DOCKER_CERT_PATH=/certs/client \
     -v agentbox-certs:/certs/client:ro \
-    -v "$HOME/.omp/agent:/home/ai-agent-box/.omp/agent" \
+    -v "$HOME/.omp/agent:/home/agent-box/.omp/agent" \
     -v "$PWD:/workspace" \
     -v "$HOME/.ca-certificates/combined-ca-bundle.crt:/etc/ssl/certs/ca-certificates.crt:ro" \
-    -v "$HOME/.m2:/home/ai-agent-box/.m2" \
+    -v "$HOME/.m2:/home/agent-box/.m2" \
     -e SONARQUBE_TOKEN -e ATLASSIAN_PERSONAL_TOKEN -e ATLASSIAN_EMAIL \
     -e JENKINS_API_TOKEN -e JENKINS_USER -e BITBUCKET_TOKEN \
-    ai-agent-box-omp-java:21 --no-title "$@"
+    agent-box-omp-java:21 --no-title "$@"
 ```
 
 The additions are: `--network agentbox-net`, the three `DOCKER_*` variables,

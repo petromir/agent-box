@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Dev image: ai-agent-box + a JVM/Python toolchain for agent-assisted builds.
+# Dev image: agent-box + a JVM/Python toolchain for agent-assisted builds.
 # SDKMAN was considered and rejected: it is per-user (writes to $HOME, which
 # the base entrypoint may re-own), depends on a live version catalog (not
 # reproducible), and its runtime version-switching has no container use case.
@@ -8,7 +8,7 @@
 # system-wide — same philosophy as the base image.
 
 # Bump to match the base image tag you built/pulled.
-ARG BASE_IMAGE=ai-agent-box:latest
+ARG BASE_IMAGE=agent-box:latest
 FROM ${BASE_IMAGE}
 
 # The base image's runtime user is named after its agent (`opencode` in
@@ -18,9 +18,9 @@ FROM ${BASE_IMAGE}
 # is no safe default: it must match whichever BASE_IMAGE was actually passed,
 # so BASE_USER is mandatory (enforced below) and must always be supplied
 # alongside BASE_IMAGE, e.g.
-#   --build-arg BASE_IMAGE=ai-agent-box-opencode:<x.y.z> --build-arg BASE_USER=opencode
-#   --build-arg BASE_IMAGE=ai-agent-box-omp:<x.y.z> --build-arg BASE_USER=omp
-# (both variants use uid 10001 and HOME=/home/ai-agent-box, so nothing else in
+#   --build-arg BASE_IMAGE=agent-box-opencode:<x.y.z> --build-arg BASE_USER=opencode
+#   --build-arg BASE_IMAGE=agent-box-omp:<x.y.z> --build-arg BASE_USER=omp
+# (both variants use uid 10001 and HOME=/home/agent-box, so nothing else in
 # this file is base-variant specific).
 ARG BASE_USER
 RUN if [ -z "${BASE_USER}" ]; then \
