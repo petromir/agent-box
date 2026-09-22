@@ -24,7 +24,7 @@ RUN apk add --no-cache \
 # GitHub-release binary path (--ref alone would switch it to a from-source
 # install via bun). Override both --build-arg OMP_VERSION and --build-arg
 # VERSION together to bump or to pin a different release.
-ARG OMP_VERSION=v18.2.4
+ARG OMP_VERSION=v18.2.8
 
 # Official install command; drops the binary at $HOME/.local/bin/omp. The
 # installer smoke-tests `omp --version` after download and fails the build if
@@ -111,7 +111,7 @@ FROM cgr.dev/chainguard/wolfi-base:latest@sha256:a31344ab2cb8618db84f535eec56f76
 # OMP_VERSION above so a plain build produces an accurate label without extra
 # args; keep the two in sync when bumping.
 ARG REVISION=unknown
-ARG VERSION=v18.2.4
+ARG VERSION=v18.2.8
 LABEL org.opencontainers.image.title="omp (Oh-My-Pi)" \
       org.opencontainers.image.description="AI coding agent with the IDE wired in, installed via the official installer." \
       org.opencontainers.image.authors="Petromir Dzhunev" \

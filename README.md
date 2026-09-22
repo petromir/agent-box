@@ -1,7 +1,7 @@
 # agent-box
 
-A minimal, hardening-first container runtime for [OpenCode](https://opencode.ai) and [Oh-My-Pi](https://omp.sh) —
-the AI coding agent for your terminal — built on
+A minimal, hardening-first container runtime for [OpenCode](https://opencode.ai)
+and [Oh-My-Pi](https://omp.sh), the AI coding agents for your terminal, built on
 [Chainguard Wolfi](https://github.com/chainguard-images/images/tree/main/images/wolfi-base)
 with a pinned digest, a non-root user, and an entrypoint that transparently
 adapts to bind-mounted repositories.
@@ -10,8 +10,8 @@ adapts to bind-mounted repositories.
 
 Running an AI coding agent directly on your machine gives it full access to
 your environment. This image gives the agent an isolated, ephemeral, minimal
-Linux userland instead — while still letting it work on your real repository
-through a bind mount, with files it creates owned by **you** on native Linux
+Linux userland instead, while still letting it work on your real repository
+through a bind mount, with files it creates owned by you on native Linux
 (not by a container uid).
 
 The image and entrypoint are built to be safe by default (non-root, no
@@ -51,7 +51,7 @@ docker build -f opencode/opencode.Dockerfile --build-arg REVISION="$(git rev-par
 
 Corporate networks that TLS-inspect traffic (Zscaler, Netskope, and similar)
 break `apk add`/`curl` inside the build with `certificate verify failed`,
-because the base image's trust store only has public root CAs — it has never
+because the base image's trust store only has public root CAs and has never
 seen your proxy's private root. Fix it for your build only, without baking
 the CA into the shipped image, using a BuildKit secret:
 
@@ -61,8 +61,7 @@ docker build -f opencode/opencode.Dockerfile --secret id=external_ca,src=/path/t
 
 - The secret is mounted into a tmpfs for that build step only; it is never
   written to an image layer, so it never ships in the image you push or share.
-- Builds without `--secret` are unaffected — this is an opt-in local escape
-  hatch, not a required build input.
+- Builds without `--secret` are unaffected; the flag is opt-in.
 - Get your proxy's root CA from your OS trust store (e.g. macOS Keychain
   Access → System keychain → export the root certificate authority your
   security tooling installed) since it's already trusted there for your
@@ -74,7 +73,7 @@ docker build -f opencode/opencode.Dockerfile --secret id=external_ca,src=/path/t
 
 > On native Linux, if your host uid is not `10001`, add `--user
 > "$(id -u):$(id -g)" --group-add 0` so the agent can write its config/data
-> dirs with no root involved — see [On native Linux (file
+> dirs with no root involved; see [On native Linux (file
 > ownership)](#on-native-linux-file-ownership).
 
 ```bash
@@ -86,13 +85,13 @@ docker run -it --rm \
   agent-box-opencode:local
 ```
 
-- `--user "$(id -u):$(id -g)" --group-add 0` — native Linux only; matches
+- `--user "$(id -u):$(id -g)" --group-add 0` (native Linux only) matches
   your host uid/gid exactly (files the agent creates come out owned by you)
   while adding gid 0 as an extra group so the pre-baked config/data dirs are
   writable. Omit this on macOS/Windows (Docker Desktop already squashes
   bind-mount ownership) or if your host uid happens to be `10001`.
-- `-v "$PWD:/workspace"` — your repository, the agent's working directory
-- `-v "$HOME/.local/share/opencode:..."` — optional; persists sessions/auth
+- `-v "$PWD:/workspace"` mounts your repository, the agent's working directory
+- `-v "$HOME/.local/share/opencode:..."` (optional) persists sessions/auth
   across containers so you don't re-login on every run
 
 ### Passing configuration and skills from outside
@@ -131,7 +130,7 @@ Container paths:
 
 The entrypoint creates `~/.config/opencode` on first run if it does not exist.
 When you bind-mount a directory over it, the mount replaces the container
-directory — your host files are used as-is.
+directory, and your host files are used as-is.
 
 ### Non-interactive
 
@@ -143,8 +142,8 @@ docker run --rm -v "$PWD:/workspace" agent-box-opencode:local --version
 ### Server (`opencode serve`)
 
 Run OpenCode as a headless HTTP server (no TUI). The image auto-binds the
-server to `0.0.0.0` *inside the container* in serve mode so a published port
-reaches it — you don't need to pass `--hostname` yourself. The server is the
+server to `0.0.0.0` inside the container in serve mode so a published port
+reaches it and you don't need to pass `--hostname` yourself. The server is the
 agent's control plane: it can read/write everything under `/workspace` and
 run shell commands, so publish it to loopback only and always set a password.
 
@@ -154,14 +153,14 @@ docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   --name opencode-server agent-box-opencode:local serve
 ```
 
-- `-p 127.0.0.1:4096:4096` — publish the serve port to loopback **only**;
+- `-p 127.0.0.1:4096:4096` publishes the serve port to loopback **only**;
   omitting the `127.0.0.1:` prefix (or using `-P`, since the image also
   declares `EXPOSE 4096`) publishes on **all** host interfaces, reachable by
   anyone on your LAN/VPN
-- `-e OPENCODE_SERVER_PASSWORD=...` — required; without it the server accepts
+- `-e OPENCODE_SERVER_PASSWORD=...` is required; without it the server accepts
   unauthenticated requests (see [Authentication](#authentication) below)
-- `-d` — detached (long-running server)
-- `-v "$PWD:/workspace"` — your repository (the server operates on it)
+- `-d` runs it detached (long-running server)
+- `-v "$PWD:/workspace"` mounts your repository (the server operates on it)
 
 Check health:
 
@@ -185,9 +184,9 @@ docker stop opencode-server
 > Note: the opencode server does not install a graceful-shutdown handler, so
 > it ignores SIGTERM/SIGINT and `docker stop` force-stops it after the grace
 > period (default 10 s). The entrypoint execs opencode as PID 1 (directly, or
-> via `setpriv` when adapting uid/gid with `--user 0` — `setpriv` replaces its
+> via `setpriv` when adapting uid/gid with `--user 0`; `setpriv` replaces its
 > own process image rather than forking, so opencode still ends up as PID 1),
-> so signals reach it directly; this is an upstream behavior, not an
+> so signals reach it directly. This is upstream behavior, not an
 > entrypoint issue. For immediate teardown use `docker kill opencode-server`
 > (SIGKILL). With `--rm` the container is removed once stopped.
 
@@ -199,14 +198,14 @@ docker stop opencode-server
 | `--hostname` | Hostname to bind (image defaults to `0.0.0.0` in serve mode) | `127.0.0.1`* |
 | `--cors` | Additional browser origins (repeatable) | `[]` |
 | `--mdns` | Enable mDNS discovery | `false` |
-| `--mdns-domain` | Custom mDNS domain name | — |
+| `--mdns-domain` | Custom mDNS domain name | none |
 
 \* The upstream `127.0.0.1` default is loopback-only and unreachable from the
 host through a published port; the image injects `--hostname 0.0.0.0` when you
 run `serve` without an explicit `--hostname`. Pass `--hostname 127.0.0.1` to
 restrict to loopback, or any other value to customize.
 
-Override port and restrict to loopback *inside the container too* (only
+Override port and restrict to loopback inside the container too (only
 reachable via `docker exec`, since a loopback-bound server is not reachable
 through a published port at all):
 
@@ -215,8 +214,8 @@ docker run --rm -d -v "$PWD:/workspace" --name oc-lb agent-box-opencode:local se
 docker exec oc-lb curl -s http://localhost:4097/global/health
 ```
 
-> Do not reach for `--network host` to work around this instead — it removes
-> the container's network namespace entirely, so *every* service listening on
+> Do not reach for `--network host` to work around this instead: it removes
+> the container's network namespace entirely, so every service listening on
 > your host's loopback interface (databases, other dev servers, a
 > TCP-exposed Docker daemon) becomes directly reachable from inside the
 > container. `docker exec` (above) is the safe way to probe a
@@ -232,8 +231,8 @@ docker run --rm -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
 
 #### Authentication
 
-Protect the server with HTTP basic auth — treat this as **required**, not
-optional, for any serve invocation, even one published to loopback only
+Protect the server with HTTP basic auth, and treat this as **required** for any
+serve invocation, even one published to loopback only
 (anything else on your machine, or anyone with SSH access to it, can reach a
 loopback-bound port):
 
@@ -245,8 +244,7 @@ docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
 
 The username defaults to `opencode`; override with
 `-e OPENCODE_SERVER_USERNAME=custom`. Without a password, opencode logs
-`server is unsecured` on startup — treat that log line as a misconfiguration,
-not a warning to ignore.
+`server is unsecured` on startup; treat that log line as a misconfiguration.
 
 #### Persistence
 
@@ -267,8 +265,7 @@ root involved): `docker run --rm -d --user "$(id -u):$(id -g)" --group-add 0 -p 
 > Note: mDNS discovery (`--mdns`) relies on host multicast and typically does
 > not function inside a container without `--network host`. Given the
 > network-isolation trade-off `--network host` carries (see above), treat
-> `--mdns` as effectively unsupported in this image rather than reaching for
-> that flag to make it work.
+> `--mdns` as effectively unsupported in this image.
 
 ### On native Linux (file ownership)
 
@@ -285,24 +282,24 @@ docker run -it --rm \
   agent-box-opencode:local
 ```
 
-- `--user "$(id -u):$(id -g)"` — runs the container as your exact host uid
+- `--user "$(id -u):$(id -g)"` runs the container as your exact host uid
   and gid, so files the agent creates in `/workspace` are owned by you, not
   by a container-internal uid.
-- `--group-add 0` — adds gid `0` as an *extra* group (not your primary
+- `--group-add 0` adds gid `0` as an extra group (not your primary
   group), which is all that's needed to write `~/.config/opencode` and
   `~/.local/share/opencode` inside the container. See "Why gid 0?" below for
   what this does and doesn't mean.
 - git's dubious-ownership check is a non-issue here: the image bakes
   `git config --system --add safe.directory '*'` at build time, so it
-  trusts any workspace regardless of uid — no runtime step needed.
-- One-time setup, not a per-run burden: put the command in a shell alias
+  trusts any workspace regardless of uid; no runtime step needed.
+- Set this up once, not per run: put the command in a shell alias
   or function (`alias agent-box='docker run -it --rm --user "$(id -u):$(id -g)" --group-add 0 -v "$PWD:/workspace" agent-box-opencode:local'`),
   or use the [Compose snippet](#compose-snippet) below.
 
-**Legacy alternative: `--user 0`.** Still supported, not removed, but no
-longer recommended for new setups — it briefly runs the container as real
-root so the entrypoint can rewrite its own uid/gid, whereas the recipe above
-never uses root at all:
+**Legacy alternative: `--user 0`.** Still supported, but no longer
+recommended for new setups: it briefly runs the container as real root so
+the entrypoint can rewrite its own uid/gid, while the recipe above never
+uses root at all:
 
 ```bash
 docker run -it --rm --user 0 -v "$PWD:/workspace" agent-box-opencode:local
@@ -312,18 +309,18 @@ The entrypoint rewrites the runtime user's uid/gid to the mount owner, marks
 `/workspace` git-safe, then drops privileges before exec'ing OpenCode.
 
 On Docker Desktop (macOS/Windows), ownership is squashed and the plain
-default invocation (no `--user` flag at all) already works as-is — none of
+default invocation (no `--user` flag at all) already works as-is; none of
 the above is needed there.
 
 ### Why gid `0`?
 
 If you're not familiar with Linux users/groups, here's the short version.
 Every file has a numeric owner (**uid**) and a numeric group (**gid**). The
-image can't predict which uid you'll run as, but it *can* pin one shared gid
+image can't predict which uid you'll run as, but it can pin one shared gid
 in advance: it makes `~/.config/opencode`, `~/.local/share/opencode`, and
 `$HOME` itself owned by group `0`, with group-write permission
-(`chmod g=u`). Linux then lets **any** uid that carries gid `0` — as its
-main group or as an extra one via `--group-add 0` — read and write those
+(`chmod g=u`). Linux then lets **any** uid that carries gid `0` (as its
+main group, or as an extra one via `--group-add 0`) read and write those
 directories, no matter what its own uid is.
 
 ```
@@ -337,14 +334,14 @@ $ docker run --user 1000:1000 --group-add 0 agent-box-opencode:local run "..."
 ```
 
 Gid `0` happens to be called "root" on most Linux systems, which can sound
-alarming — but inside this container it confers **no special power**: there
-is no `sudo`, no setuid binary, nothing gid `0` can do beyond read/write the
-few directories the image explicitly made group-writable. It's just a
-convenient, always-present group number every container has, borrowed as a
-"anyone with this group can write here" signal — not an admin flag. If a
-security scanner in your environment flags `runAsGroup: 0`, use
+alarming, but inside this container it confers **no special power**: there is
+no `sudo`, no setuid binary, and nothing gid `0` can do beyond read/write
+the few directories the image explicitly made group-writable. It is a
+convenient, always-present group number every container has, borrowed here
+as a "anyone with this group can write here" signal, not an admin flag. If
+a security scanner in your environment flags `runAsGroup: 0`, use
 `--group-add 0` (gid 0 as a supplementary group) rather than `--user X:0`
-(gid 0 as your primary group) — both work identically for this image, and
+(gid 0 as your primary group); both work identically for this image, and
 the former keeps your primary gid as whatever your policy expects.
 
 ### Compose snippet
@@ -368,30 +365,29 @@ does not expand `$(id -u)` itself, so export it from the shell first).
 ## Hardening: keeping the agent scoped to `/workspace`
 
 The image is non-root, has no setuid binaries, and no way back to root once
-the entrypoint drops privileges — but a container is not a sandbox by
-itself. Capabilities, the network namespace, and the root filesystem are only
-as locked down as the flags you pass to `docker run`. The recipes below were
-verified against this image; adopt them as your default invocation rather
-than an occasional extra.
+the entrypoint drops privileges. But a container is not a sandbox by itself:
+capabilities, the network namespace, and the root filesystem are only as
+locked down as the flags you pass to `docker run`. The recipes below were
+verified against this image; adopt them as your default invocation.
 
 ### Threat model in one paragraph
 
-**Docker Desktop (macOS/Windows):** the container runs inside a lightweight
+On **Docker Desktop (macOS/Windows)**, the container runs inside a lightweight
 VM; an escape reaches that VM, not your host filesystem, and bind-mount
-ownership is squashed so the default non-root user already works. **Native
-Linux:** the kernel is shared with your host. Use the [arbitrary-uid
+ownership is squashed so the default non-root user already works. On **native
+Linux**, the kernel is shared with your host. Use the [arbitrary-uid
 recipe](#on-native-linux-file-ownership) (`--user "$(id -u):$(id -g)"
 --group-add 0`) rather than the legacy `--user 0`: it needs **no root and no
 capabilities at all** (verified working with `--cap-drop=ALL`), so there is
 no privileged window for an escape to land in, unlike `--user 0`, which
 briefly runs the container as real root. Rootless Docker, `dockerd
 --userns-remap`, or Podman with `--userns=keep-id` remain worth adopting on
-top of either recipe if available — they add a further layer by remapping
+top of either recipe if available; they add a further layer by remapping
 container uids away from real host uids entirely.
 
 ### Recommended invocations
 
-Default (non-root) path — verified working:
+Default (non-root) path, verified working:
 
 ```bash
 docker run -it --rm \
@@ -413,10 +409,9 @@ instead, since that mount already gives you a writable, size-bounded path):
 ```
 
 Native-Linux arbitrary-uid path (see [On native Linux (file
-ownership)](#on-native-linux-file-ownership)) — this is the **recommended**
-native-Linux recipe; unlike `--user 0` below, it needs **zero capabilities**
-(verified working with `--cap-drop=ALL`) and is fully compatible with
-`--read-only`:
+ownership)](#on-native-linux-file-ownership)), the **recommended** native-Linux
+recipe; unlike `--user 0` below, it needs **zero capabilities** (verified
+working with `--cap-drop=ALL`) and works with `--read-only`:
 
 ```bash
 docker run -it --rm \
@@ -432,16 +427,16 @@ docker run -it --rm \
 ```
 
 (Omit the `--read-only`/`--tmpfs` lines if you don't need that level of
-hardening — the recipe works identically without them, just with a writable
+hardening; the recipe works identically without them, just with a writable
 root filesystem.)
 
-Legacy `--user 0` path — kept for compatibility, no longer recommended (see
-[On native Linux (file ownership)](#on-native-linux-file-ownership)). This
-is the **exact minimal capability set**; dropping `CAP_CHOWN` breaks the
+Legacy `--user 0` path, kept for compatibility and no longer recommended
+(see [On native Linux (file ownership)](#on-native-linux-file-ownership)).
+This is the **exact minimal capability set**; dropping `CAP_CHOWN` breaks the
 entrypoint's `chown` calls, a plain `--cap-drop=ALL` fails at `setpriv`'s
 `setresuid` with a non-obvious error, and dropping `CAP_SETPCAP` breaks the
 entrypoint's own `setpriv --bounding-set -all` hardening step (that step
-needs `CAP_SETPCAP` to clear the *target* process's bounding set, even
+needs `CAP_SETPCAP` to clear the target process's bounding set, even
 though the target ends up with none of these capabilities once it runs):
 
 ```bash
@@ -453,21 +448,21 @@ docker run -it --rm --user 0 \
   agent-box-opencode:local
 ```
 
-`--read-only` is **not compatible** with `--user 0`: the entrypoint needs a
+`--read-only` **does not work** with `--user 0`: the entrypoint needs a
 writable `/etc` to rewrite `/etc/passwd`/`/etc/group`. This is one more
 reason to prefer the arbitrary-uid recipe above when you can.
 
 ### Never mount / never pass
 
 - **Never mount:** `/var/run/docker.sock` (equivalent to unrestricted host
-  root — see the note below if you actually need Docker-outside-of-Docker),
+  root; see the note below if you actually need Docker-outside-of-Docker),
   `/`, `$HOME` as a whole, `~/.ssh` as a whole, `~/.aws`, `~/.kube`,
   `~/.docker`.
 - **Never pass:** `--privileged`, `--pid=host`, `--ipc=host`,
   `--security-opt seccomp=unconfined`, `--cap-add=SYS_ADMIN`. Don't forward
-  `SSH_AUTH_SOCK` into the container either — it lets the agent authenticate
+  `SSH_AUTH_SOCK` into the container either: it lets the agent authenticate
   as you anywhere your agent forwarding reaches, with no key file to revoke.
-- **Do instead:** mount a single dedicated, revocable deploy key read-only
+- **Do instead**: mount a single dedicated, revocable deploy key read-only
   (`-v "$HOME/.ssh/id_agentbox:/home/agent-box/.ssh/id_ed25519:ro"`), or
   prefer an HTTPS token scoped to the one repo you're working on, passed with
   `-e`. Mount the narrowest directory the task actually needs, and add `:ro`
@@ -476,7 +471,7 @@ reason to prefer the arbitrary-uid recipe above when you can.
   cannot look up in `/etc/passwd` (e.g. `--user 999:0` with no such uid
   baked into the image). The entrypoint self-heals this by appending a
   passwd entry for the running uid on first use, so `ssh`/`whoami` work
-  normally — no action needed on your part. If you also pass `--read-only`
+  normally, with no action needed on your part. If you also pass `--read-only`
   without a writable `/etc`, that self-heal can't run; either accept that
   SSH-based git won't work in that combination, or bind-mount your host's
   own passwd file read-only instead: `-v /etc/passwd:/etc/passwd:ro`.
@@ -487,7 +482,7 @@ reason to prefer the arbitrary-uid recipe above when you can.
   path this auto-wiring needs root and doesn't run, so add the socket's own
   group yourself: `--group-add "$(stat -c %g /var/run/docker.sock)"`. Either
   way, treat that mount as equivalent to handing the agent root on the
-  Docker host, because it is — a container started through that socket can
+  Docker host, because it is: a container started through that socket can
   trivially mount `/` and read/write anything. Only do this in a disposable
   VM, never on a workstation with anything sensitive on it.
 
@@ -496,8 +491,8 @@ reason to prefer the arbitrary-uid recipe above when you can.
 Verified: with default bridge networking the container can reach services
 bound to your host's loopback interface (e.g. via `host.docker.internal`),
 and the agent has unrestricted egress by default (it ships `curl`).
-"Access to the host" is not only the filesystem — an agent with unrestricted
-egress can also read cloud-metadata endpoints on a cloud VM, reach a
+Unrestricted egress is another way to reach the host: the agent can read
+cloud-metadata endpoints on a cloud VM, reach a
 TCP-exposed Docker daemon, or exfiltrate repository contents to any endpoint
 the model chooses to call.
 
@@ -507,7 +502,7 @@ the model chooses to call.
 - For sensitive repositories, route egress through an allow-listing proxy
   (`-e HTTPS_PROXY=...`) so only your model provider's endpoint is reachable.
 - Never pass `--network host` to work around a loopback-bound `serve` or
-  `--mdns` (see [Server](#server-opencode-serve)) — it removes the container's
+  `--mdns` (see [Server](#server-opencode-serve)): it removes the container's
   network namespace entirely, making every host-loopback service directly
   reachable from inside the container.
 
@@ -515,12 +510,12 @@ the model chooses to call.
 
 - `--read-only` plus the tmpfs mounts above prevents the agent from
   persisting tooling or tampering with `/usr/local/bin/opencode` or `/etc`
-  between invocations. Rely on the default seccomp profile too — never pass
+  between invocations. Rely on the default seccomp profile too: never pass
   `--security-opt seccomp=unconfined` to work around a tool that seems to
   need it; narrow the actual cause instead.
 - `--pids-limit`, `--memory`, and `--cpus` bound the blast radius of a
   runaway build, an agent stuck in a retry loop, or a shell fork bomb the
-  agent's own tool-calling issues — none of which requires a container
+  agent's own tool-calling issues, none of which requires a container
   escape to hurt your host.
 - A bind mount has no container-level disk quota: the agent can fill your
   host disk by writing into `/workspace` or a persisted volume. Monitor free
@@ -534,7 +529,7 @@ the model chooses to call.
 | User | `opencode`, uid/gid 10001 (arbitrary-uid capable via gid 0; root only needed for the legacy `--user 0` path) |
 | Binary | `/usr/local/bin/opencode` (root-owned, 0755, from the official installer) |
 | Data dirs | `$HOME=/home/agent-box` (writable), `WORKDIR=/workspace` |
-| Size | Not published — it moves with every bundled agent release. Measure your own build: [How big is it?](#how-big-is-it) |
+| Size | Not published; it moves with every bundled agent release. Measure your own build: [How big is it?](#how-big-is-it) |
 | Entry | `opencode-entrypoint.sh` → `opencode`; default `CMD ["--help"]` |
 | Exposed | `4096/tcp` (default `opencode serve` port; metadata only) |
 
@@ -544,16 +539,16 @@ container start), plus version-pinned agent-efficiency tooling: `ripgrep`
 (fast, gitignore-aware search), `jq` and `yq` (JSON/YAML querying and
 validation), `patch` and `diffutils` (applying unified diffs). Pin each with
 its own `--build-arg` (`RIPGREP_VERSION`, `JQ_VERSION`, `YQ_VERSION`,
-`PATCH_VERSION`, `DIFFUTILS_VERSION`) — same reproducibility rationale as
+`PATCH_VERSION`, `DIFFUTILS_VERSION`), same reproducibility rationale as
 `OPENCODE_VERSION`. The build stage runs the official installer
 (`curl -fsSL https://opencode.ai/install | bash`) and copies only the binary
-into the final image — no install toolchain in the runtime layer.
+into the final image; the runtime layer has no install toolchain.
 
 Also bundled: [`fff-mcp`](https://github.com/dmtrKovalenko/fff)
 (`/usr/local/bin/fff-mcp`, root-owned, 0755), a static MCP server binary for
 fast file search. Installed as a pinned, checksum-verified GitHub release
-download (`FFF_MCP_VERSION`, `FFF_MCP_SHA256_AMD64`/`FFF_MCP_SHA256_ARM64`)
-— deliberately not via the vendor's `curl | bash` installer, since that
+download (`FFF_MCP_VERSION`, `FFF_MCP_SHA256_AMD64`/`FFF_MCP_SHA256_ARM64`),
+deliberately not via the vendor's `curl | bash` installer, since that
 script is itself fetched unpinned and its checksum verification fails open
 in some fallback branches. Same reproducible, checksum-verified pattern as
 the Liberica JDK/mvnd installs in `java/java-25.Dockerfile`.
@@ -562,13 +557,13 @@ Also bundled: [`shellcheck`](https://github.com/koalaman/shellcheck)
 (`/usr/local/bin/shellcheck`, root-owned, 0755), a static analyzer for
 `sh`/`bash` scripts, so the agent can lint the shell it writes instead of
 eyeballing it. ShellCheck has **no Wolfi package** (`apk search shellcheck`
-returns nothing — Wolfi ships no GHC toolchain), and Alpine packages cannot be
+returns nothing; Wolfi ships no GHC toolchain), and Alpine packages cannot be
 mixed into a Wolfi image, so this image installs upstream's own statically
 linked release binary with the same pinned-version-plus-SHA256 pattern
 (`SHELLCHECK_VERSION`, `SHELLCHECK_SHA256_AMD64`/`SHELLCHECK_SHA256_ARM64`).
 Its license text and a Corresponding-Source pointer are copied to
-`/usr/share/doc/shellcheck/` (`LICENSE.txt`, `SOURCE.txt`) — Wolfi's own
-convention for package licenses. It is the heaviest single addition to the
+`/usr/share/doc/shellcheck/` (`LICENSE.txt`, `SOURCE.txt`), matching Wolfi's
+own convention for package licenses. It is the heaviest single addition to the
 image on arm64; see [How big is it?](#how-big-is-it), and drop the
 `shellcheck` `ARG`/`COPY` steps if that cost does not suit you (nothing else in
 the image depends on them).
@@ -593,19 +588,19 @@ docker history --format '{{.Size}}  {{.CreatedBy}}' agent-box-opencode:local | h
 
 Three traps when reading those numbers:
 
-- **Units.** `docker images` and `docker history` print **decimal** MB
+- **Units**: `docker images` and `docker history` print decimal MB
   (1000-based). The same image is `384MB` there and 367 MiB if you divide
   `docker image inspect --format '{{.Size}}'` bytes by 1048576. Never mix the
   two in one sentence.
-- **Disk is not download.** Registries compress each layer, so a pull is much
-  cheaper than the on-disk figure — ShellCheck's 55 MB arm64 layer transfers
+- **Registries compress each layer**, so a pull is much cheaper than the on-disk
+  figure: ShellCheck's 55 MB arm64 layer transfers
   about 12 MB, and its 16 MB x86_64 counterpart about 4 MB.
-- **Architecture.** The same pinned release differs per arch, so always state
+- **Architecture:** the same pinned release differs per arch, so always state
   the arch with the number. Proof from the pinned ShellCheck v0.11.0 assets:
-  16,213,136 bytes (x86_64) vs 55,043,352 bytes (aarch64) — 3.4x apart.
+  16,213,136 bytes (x86_64) vs 55,043,352 bytes (aarch64), 3.4x apart.
 
 Snapshot of one build (arm64, `OPENCODE_VERSION=1.18.31`, measured 2026-09-17)
-so you know what to expect before you measure — re-run the commands rather than
+so you know what to expect before you measure. Re-run the commands rather than
 quoting this table:
 
 | Layer | Size | Share |
@@ -619,13 +614,13 @@ quoting this table:
 | **Total** | **384 MB** | |
 
 The omp variant is the same shape with a different agent binary. The
-`java/java-25.Dockerfile` worked example lands near 1 GB — that is the cost of
-the JDK/mvnd/Python layer you add, not of the base.
+`java/java-25.Dockerfile` worked example lands near 1 GB, and that cost is
+the JDK/mvnd/Python layer you add, not the base.
 
 ## Variant: omp (Oh-My-Pi)
 
 [`omp/omp.Dockerfile`](omp/omp.Dockerfile) builds the same hardened box around
-[omp](https://omp.sh) (Oh-My-Pi) instead of OpenCode — same digest-pinned
+[omp](https://omp.sh) (Oh-My-Pi) instead of OpenCode: same digest-pinned
 Wolfi base, same non-root uid 10001 with bind-mount uid/gid adaptation, same
 bundled tooling (including `fff-mcp` and `shellcheck`, installed the same
 pinned, checksum-verified way). The agent is installed via the official installer
@@ -662,9 +657,9 @@ Differences from the OpenCode image:
 |----------|-----------|
 | Binary | `/usr/local/bin/omp` (root-owned, 0755, from the official installer) |
 | User | `omp`, uid/gid 10001 (arbitrary-uid capable via gid 0; root only needed for the legacy `--user 0` path) |
-| Config/data dir | `$HOME/.omp` (`/home/agent-box/.omp`) or `$HOME/.omp/agent` — mount to persist config and sessions |
+| Config/data dir | `$HOME/.omp` (`/home/agent-box/.omp`) or `$HOME/.omp/agent`; mount to persist config and sessions |
 | Entry | `omp-entrypoint.sh` → `omp`; default `CMD ["--help"]` |
-| Server mode | none — omp's entry points are the TUI, one-shot `-p`, RPC, and ACP over stdio, so the image has no `EXPOSE` and the entrypoint injects no `--hostname` |
+| Server mode | none; omp's entry points are the TUI, one-shot `-p`, RPC, and ACP over stdio, so the image has no `EXPOSE` and the entrypoint injects no `--hostname` |
 
 On native Linux, use the arbitrary-uid recipe (`--user "$(id -u):$(id -g)"
 --group-add 0`) exactly as described in [On native Linux (file
@@ -707,7 +702,7 @@ Things to keep in mind:
   user.** The base image is non-root by default; installing packages needs
   root, but the final image should stay non-root unless you have a specific
   reason not to. That user is `opencode` in `agent-box-opencode` and `omp`
-  in `agent-box-omp` (both uid 10001, both `$HOME=/home/agent-box`) — and
+  in `agent-box-omp` (both uid 10001, both `$HOME=/home/agent-box`), and
   the name must exist in the image, since `docker run` resolves it through
   `/etc/passwd` before the container starts.
 - **Verify Wolfi package names before installing.** This image is built on
@@ -728,15 +723,15 @@ Things to keep in mind:
   runs OpenCode. Override `CMD` (or `ENTRYPOINT`) explicitly if you need to.
 - **Preserve ownership under `/home/agent-box`.** Anything you `COPY` or
   create there should be group-owned by gid `0` with group permissions
-  mirroring the owner's — e.g. `COPY --chown=opencode:0 --chmod=775 ...`, or
-  a `RUN chown -R opencode:0 ... && chmod -R g=u ...` step — matching the
+  mirroring the owner's, e.g. `COPY --chown=opencode:0 --chmod=775 ...` or
+  a `RUN chown -R opencode:0 ... && chmod -R g=u ...` step, matching the
   base image's own arbitrary-uid layout (see [Why gid
   0?](#why-gid-0)). `--chown=opencode:opencode` (the pre-arbitrary-uid
   pattern) still lets the default uid-10001 user write it, but breaks
   writability for anyone using the recommended `--user "$(id -u):$(id -g)"
   --group-add 0` recipe.
 - **Give build caches a writable home.** Maven (`.m2`), pip (`.cache/pip`),
-  and Gradle (`.gradle`) all write under `$HOME` by default — which is
+  and Gradle (`.gradle`) all write under `$HOME` by default, which is
   `/home/agent-box` and writable, so this works out of the box. To persist
   caches across containers, mount a volume, e.g.
   `-v maven-cache:/home/agent-box/.m2`.
@@ -749,18 +744,18 @@ Things to keep in mind:
   copy of `cacerts` under `$JAVA_HOME/lib/security`), separate from
   `/etc/ssl/certs/ca-certificates.crt`. Appending the proxy CA to the system
   bundle makes `curl`/`apk` trust it but does NOT make `java`/`mvnd` trust
-  it — without a second `keytool -importcert ... -keystore
+  it: without a second `keytool -importcert ... -keystore
   "$JAVA_HOME/lib/security/cacerts" -storepass changeit` step after
   installing the JDK, JVM-side HTTPS calls (e.g. Maven resolving
   dependencies) still fail with `PKIX path building failed`. See
   `java/java-25.Dockerfile` for the worked-example step.
 - **Expect the image to grow.** Toolchains like a JDK and Maven add real
-  weight (often 300–500 MB combined); the "minimal" sizing in this README
+  weight (often 300-500 MB combined); the "minimal" sizing in this README
   applies to the unmodified base image, not your derived one.
 - **Don't reintroduce a path back to root.** The base image deliberately
   ships no setuid/setgid binaries and no `sudo`/`su`/`doas`, so once the
   entrypoint drops privileges via `setpriv` there is nothing in the image
-  that can regain root — reinforced by `--no-new-privs` on that `setpriv`
+  that can regain root, reinforced by `--no-new-privs` on that `setpriv`
   call (see [Hardening](#hardening-keeping-the-agent-scoped-to-workspace)).
   Installing a package that ships a setuid binary or file capabilities (rare,
   but some `apk add` packages do) as root in your derived `Dockerfile` can
@@ -770,12 +765,12 @@ Things to keep in mind:
 
 ### Worked example: `java/java-25.Dockerfile`
 
-This repo ships [`java/java-25.Dockerfile`](java/java-25.Dockerfile) as a canonical derived
+This repo ships [`java/java-25.Dockerfile`](java/java-25.Dockerfile) as a worked example of a derived
 image: it layers BellSoft Liberica JDK 25, Maven Daemon (`mvnd`, which bundles
 Maven), and Python 3.13 on top of the base image. The same file builds two
 images, one per base agent. It demonstrates the pattern recommended above:
 pinned, checksum-verified tarball downloads installed system-wide for tools
-Wolfi does not package (SDKMAN was considered and rejected — it is per-user,
+Wolfi does not package (SDKMAN was considered and rejected: it is per-user,
 writes to `$HOME`, and depends on a live version catalog, so builds are not
 reproducible).
 
@@ -803,7 +798,7 @@ docker run --rm --entrypoint bash agent-box-omp-java:local \
 ```
 
 The JDK build is pinned by `LIBERICA_VERSION` plus the per-arch
-`LIBERICA_SHA1_*` values in the Dockerfile — override them together (fetch new
+`LIBERICA_SHA1_*` values in the Dockerfile; override them together (fetch new
 SHA1s from `api.bell-sw.com/v1/liberica/releases`, `arch=x86`/`arch=arm`) to
 move to a different Liberica release. The install path and `JAVA_HOME` are
 hardcoded to `liberica-25`, so rename those too when changing major versions.
@@ -821,7 +816,7 @@ docker run --rm my-agent-box run "run: java -version && mvn -version && python3 
 
 The arbitrary-uid recipe, the legacy `--user 0` uid-adaptation path, and
 `serve` hostname injection described above all work unchanged in derived
-images, since they live in the inherited entrypoint — but see "Preserve
+images, since they live in the inherited entrypoint. See "Preserve
 ownership under `/home/agent-box`" above if your derived Dockerfile adds
 anything under `$HOME`.
 
@@ -840,20 +835,20 @@ Note: on native Linux with the recommended `--user "$(id -u):$(id -g)"
 --group-add 0` recipe (or the legacy `--user 0`), the container writes
 session/auth files as your own uid, so a persisted directory you create
 yourself is already writable. The only case needing a fix is a directory an
-*earlier* run created under the plain default (uid `10001`, no `--user`
-flag) — fix its ownership once with
+earlier run created under the plain default (uid `10001`, no `--user`
+flag): fix its ownership once with
 `sudo chown -R "$(id -u):$(id -g)" ~/.local/share/opencode`, or the agent
 will not be able to write sessions/auth.
 
 ### Passing tokens and secrets for skills/tools
 
-Some skills or MCP tools need their own credentials at runtime — a
+Some skills or MCP tools need their own credentials at runtime: a
 `GITHUB_TOKEN`, a Jira/Confluence API token, a database password, etc. The
 same `-e` mechanism used for provider API keys above works for any secret
-env variable; you are not limited to model provider keys.
+env variable.
 
 Never source `~/.bashrc` (or any interactive shell rc file) into the
-container — it is not a portable `KEY=VALUE` list, and mixing secrets into
+container: it is not a portable `KEY=VALUE` list, and mixing secrets into
 shell startup files is fragile. Instead, pick one of:
 
 ```bash
@@ -878,12 +873,12 @@ docker run -it --rm -v "$PWD:/workspace" \
 
 Keep the env file out of version control and readable only by you
 (`chmod 600`). This matches the repo convention of never baking secrets into
-the image or its `ENV`/`ARG` — secrets are always supplied at `docker run`
+the image or its `ENV`/`ARG`: secrets are always supplied at `docker run`
 time, whether they are model provider keys or skill/tool tokens.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE). Bundled third-party tools keep their own
+Apache-2.0; see [LICENSE](LICENSE). Bundled third-party tools keep their own
 licenses; see [Licensing of bundled third-party tools](#licensing-of-bundled-third-party-tools)
 for the one copyleft component (ShellCheck, GPLv3) and what it means when you
 redistribute an image built from this repo.
@@ -893,7 +888,7 @@ redistribute an image built from this repo.
 ShellCheck is **GPLv3**. That is unremarkable in itself: the Wolfi base already
 ships copyleft packages (`bash` and `diffutils` GPL-3.0-or-later, `busybox` and
 `apk-tools` GPL-2.0, `glibc` LGPL-2.1), and apk installs their license text for
-you. ShellCheck is simply the first copyleft tool added *outside* the package
+you. ShellCheck is the first copyleft tool added outside the package
 manager, so its notices have to be placed by hand. What it means in practice:
 
 - **Your files are unaffected.** Separate programs in one filesystem are "mere
@@ -901,15 +896,15 @@ manager, so its notices have to be placed by hand. What it means in practice:
   application code keep their own licenses; this repo stays Apache-2.0.
 - **Obligations attach only when you *distribute* the image** (push to a
   registry, ship it to customers). Running it yourself, including as an
-  internal service, is not distribution — and ShellCheck moved from AGPL to GPL
+  internal service, is not distribution, and ShellCheck moved from AGPL to GPL
   in v0.3.8, so there is no network-use clause to worry about either.
 - **When you do distribute**, you must ship the license text (done), keep the
-  notices, and be able to hand over ShellCheck's Corresponding Source — the
+  notices, and be able to hand over ShellCheck's Corresponding Source; the
   `SOURCE.txt` in the image points at the exact release's source archive.
   You may add no further restrictions on ShellCheck, and any patch you make to
   ShellCheck's own source must stay GPLv3.
 - **One real trap:** call it as a command, as the agent does. Linking against
-  ShellCheck's Haskell library would make *your* program a derivative work.
+  ShellCheck's Haskell library would make your program a derivative work.
 
 ## Support my work
 
