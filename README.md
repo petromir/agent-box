@@ -148,8 +148,9 @@ agent's control plane: it can read/write everything under `/workspace` and
 run shell commands, so publish it to loopback only and always set a password.
 
 ```bash
+PW="$(openssl rand -hex 24)"
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
-  -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
+  -e OPENCODE_SERVER_PASSWORD="$PW" \
   --name opencode-server agent-box-opencode:local serve
 ```
 
@@ -157,22 +158,27 @@ docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   omitting the `127.0.0.1:` prefix (or using `-P`, since the image also
   declares `EXPOSE 4096`) publishes on **all** host interfaces, reachable by
   anyone on your LAN/VPN
-- `-e OPENCODE_SERVER_PASSWORD=...` is required; without it the server accepts
-  unauthenticated requests (see [Authentication](#authentication) below)
+- `-e OPENCODE_SERVER_PASSWORD=...` sets the password. V2 generates one and
+  prints `server password <value>` on startup when you do not set this
+  variable, so the server is never left unauthenticated; setting it yourself
+  keeps the password known and stable (see [Authentication](#authentication)
+  below)
 - `-d` runs it detached (long-running server)
 - `-v "$PWD:/workspace"` mounts your repository (the server operates on it)
 
-Check health:
+Check the server (V2 exposes server info, including the version, at
+`/api/info`, behind HTTP basic auth):
 
 ```bash
-curl http://localhost:4096/global/health
-# {"healthy":true,"version":"..."}
+curl -s -u "opencode:$PW" http://localhost:4096/api/info
+# {"version":"...","pid":...,"urls":[...],"paths":{...}}
 ```
 
-OpenAPI 3.1 spec (generate clients / inspect types):
+OpenAPI 3.1 spec (generate clients / inspect types) and the bundled web UI:
 
 ```bash
-open http://localhost:4096/doc
+curl -s -u "opencode:$PW" http://localhost:4096/openapi.json -o openapi.json
+open http://localhost:4096/          # web UI; sign in with the password
 ```
 
 Stop the server:
@@ -181,14 +187,12 @@ Stop the server:
 docker stop opencode-server
 ```
 
-> Note: the opencode server does not install a graceful-shutdown handler, so
-> it ignores SIGTERM/SIGINT and `docker stop` force-stops it after the grace
-> period (default 10 s). The entrypoint execs opencode as PID 1 (directly, or
+> Note: V2 handles SIGTERM gracefully, so `docker stop opencode-server` shuts
+> the server down cleanly. The entrypoint execs opencode as PID 1 (directly, or
 > via `setpriv` when adapting uid/gid with `--user 0`; `setpriv` replaces its
 > own process image rather than forking, so opencode still ends up as PID 1),
-> so signals reach it directly. This is upstream behavior, not an
-> entrypoint issue. For immediate teardown use `docker kill opencode-server`
-> (SIGKILL). With `--rm` the container is removed once stopped.
+> so signals reach it directly. With `--rm` the container is removed once
+> stopped.
 
 #### Options
 
@@ -197,8 +201,6 @@ docker stop opencode-server
 | `--port` | Port to listen on | `4096` |
 | `--hostname` | Hostname to bind (image defaults to `0.0.0.0` in serve mode) | `127.0.0.1`* |
 | `--cors` | Additional browser origins (repeatable) | `[]` |
-| `--mdns` | Enable mDNS discovery | `false` |
-| `--mdns-domain` | Custom mDNS domain name | none |
 
 \* The upstream `127.0.0.1` default is loopback-only and unreachable from the
 host through a published port; the image injects `--hostname 0.0.0.0` when you
@@ -210,8 +212,9 @@ reachable via `docker exec`, since a loopback-bound server is not reachable
 through a published port at all):
 
 ```bash
-docker run --rm -d -v "$PWD:/workspace" --name oc-lb agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
-docker exec oc-lb curl -s http://localhost:4097/global/health
+PW="$(openssl rand -hex 24)"
+docker run --rm -d -v "$PWD:/workspace" -e OPENCODE_SERVER_PASSWORD="$PW" --name oc-lb agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
+docker exec oc-lb curl -s -u "opencode:$PW" http://localhost:4097/api/info
 ```
 
 > Do not reach for `--network host` to work around this instead: it removes
@@ -224,8 +227,9 @@ docker exec oc-lb curl -s http://localhost:4097/global/health
 Allow browser origins (CORS):
 
 ```bash
+PW="$(openssl rand -hex 24)"
 docker run --rm -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
-  -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
+  -e OPENCODE_SERVER_PASSWORD="$PW" \
   agent-box-opencode:local serve --cors http://localhost:5173 --cors https://app.example.com
 ```
 
@@ -237,14 +241,17 @@ serve invocation, even one published to loopback only
 loopback-bound port):
 
 ```bash
+PW="$(openssl rand -hex 24)"
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
-  -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
+  -e OPENCODE_SERVER_PASSWORD="$PW" \
   agent-box-opencode:local serve
 ```
 
-The username defaults to `opencode`; override with
-`-e OPENCODE_SERVER_USERNAME=custom`. Without a password, opencode logs
-`server is unsecured` on startup; treat that log line as a misconfiguration.
+The username is fixed to `opencode` in V2 (the V1
+`OPENCODE_SERVER_USERNAME` override is gone). If you do not set
+`OPENCODE_SERVER_PASSWORD`, V2 generates one and prints
+`server password <value>` on startup, so the server is never left
+unauthenticated.
 
 #### Persistence
 
@@ -252,20 +259,16 @@ Mount the auth/sessions directory so logins and sessions survive across
 containers:
 
 ```bash
+PW="$(openssl rand -hex 24)"
 docker run --rm -d -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" \
   -v "$HOME/.local/share/opencode:/home/agent-box/.local/share/opencode" \
-  -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" \
+  -e OPENCODE_SERVER_PASSWORD="$PW" \
   agent-box-opencode:local serve
 ```
 
 On native Linux with a host uid other than `10001`, add
 `--user "$(id -u):$(id -g)" --group-add 0` (works the same in serve mode, no
-root involved): `docker run --rm -d --user "$(id -u):$(id -g)" --group-add 0 -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" -e OPENCODE_SERVER_PASSWORD="$(openssl rand -hex 24)" agent-box-opencode:local serve`.
-
-> Note: mDNS discovery (`--mdns`) relies on host multicast and typically does
-> not function inside a container without `--network host`. Given the
-> network-isolation trade-off `--network host` carries (see above), treat
-> `--mdns` as effectively unsupported in this image.
+root involved): `PW="$(openssl rand -hex 24)" && docker run --rm -d --user "$(id -u):$(id -g)" --group-add 0 -p 127.0.0.1:4096:4096 -v "$PWD:/workspace" -e OPENCODE_SERVER_PASSWORD="$PW" agent-box-opencode:local serve`.
 
 ### On native Linux (file ownership)
 
@@ -501,10 +504,10 @@ the model chooses to call.
   `--version`, or local-model setups reachable only via a mounted socket).
 - For sensitive repositories, route egress through an allow-listing proxy
   (`-e HTTPS_PROXY=...`) so only your model provider's endpoint is reachable.
-- Never pass `--network host` to work around a loopback-bound `serve` or
-  `--mdns` (see [Server](#server-opencode-serve)): it removes the container's
-  network namespace entirely, making every host-loopback service directly
-  reachable from inside the container.
+- Never pass `--network host` to work around a loopback-bound `serve` (see
+  [Server](#server-opencode-serve)): it removes the container's network
+  namespace entirely, making every host-loopback service directly reachable
+  from inside the container.
 
 ### Filesystem and resource limits
 
@@ -541,7 +544,7 @@ validation), `patch` and `diffutils` (applying unified diffs). Pin each with
 its own `--build-arg` (`RIPGREP_VERSION`, `JQ_VERSION`, `YQ_VERSION`,
 `PATCH_VERSION`, `DIFFUTILS_VERSION`), same reproducibility rationale as
 `OPENCODE_VERSION`. The build stage runs the official installer
-(`curl -fsSL https://opencode.ai/install | bash`) and copies only the binary
+(`curl -fsSL https://opencode.ai/v2/install | bash`) and copies only the binary
 into the final image; the runtime layer has no install toolchain.
 
 Also bundled: [`fff-mcp`](https://github.com/dmtrKovalenko/fff)
@@ -822,10 +825,11 @@ anything under `$HOME`.
 
 ## API keys
 
-OpenCode stores provider credentials under
-`~/.local/share/opencode/auth.json` (inside the container:
-`/home/agent-box/.local/share/opencode/`). Either persist that directory as a
-volume (shown above) or pass keys per-run with `-e`:
+OpenCode keeps provider credentials in its data directory (inside the
+container: `/home/agent-box/.local/share/opencode/`; V2 stores them in
+`opencode.db` there and imports a legacy `auth.json` on first run). Either
+persist that directory as a volume (shown above) or pass keys per-run with
+`-e`:
 
 ```bash
 docker run -it --rm -v "$PWD:/workspace" -e ANTHROPIC_API_KEY agent-box-opencode:local

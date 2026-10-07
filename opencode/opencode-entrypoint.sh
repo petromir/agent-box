@@ -119,15 +119,19 @@ ensure_passwd_entry() {
     fi
 }
 
-# serve/web/acp default to --hostname 127.0.0.1 (loopback only), which is
+# `opencode serve` defaults to --hostname 127.0.0.1 (loopback only), which is
 # unreachable from the host through a published port. In a container we want
 # the server bound to all interfaces so `docker run -p` reaches it out of the
-# box. Inject --hostname 0.0.0.0 only for these headless-server subcommands
-# (identified as the first non-flag argument, so a leading global flag like
-# --print-logs doesn't defeat the match) and only when the user has not set
-# --hostname themselves (they can still pass --hostname 127.0.0.1 to restrict
-# to loopback). Runs before the uid-adaptation branch so both exec paths below
+# box. Inject --hostname 0.0.0.0 only for the `serve` subcommand (identified as
+# the first non-flag argument, so a leading global flag like --print-logs
+# doesn't defeat the match) and only when the user has not set --hostname
+# themselves (they can still pass --hostname 127.0.0.1 to restrict to
+# loopback). Runs before the uid-adaptation branch so both exec paths below
 # receive the same args.
+#
+# v1 injected this for `web` and `acp` too; v2 dropped `web` (the web UI is
+# served by `serve`) and `acp` rejects `--hostname` ("Unrecognized flag:
+# --hostname in command opencode acp"), so neither is matched here anymore.
 headless_cmd=""
 for arg in "$@"; do
     case "$arg" in
@@ -136,7 +140,7 @@ for arg in "$@"; do
     esac
 done
 case "$headless_cmd" in
-    serve|web|acp)
+    serve)
         has_hostname=0
         for arg in "$@"; do
             case "$arg" in

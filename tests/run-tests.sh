@@ -13,9 +13,10 @@
 #     - root/uid-adaptation path (legacy --user 0): "adapting uid/gid..."
 #       message, adapted user can git-status /workspace and write
 #       ~/.config/opencode and ~/.local/share/opencode
-#     - serve path: health endpoint reachable through the published port and
-#       reports the installed version; an explicit --hostname override binds
-#       loopback only (unreachable from the host)
+#     - serve path: the /api/info endpoint is reachable through the published
+#       port and reports the installed version (HTTP basic auth with the
+#       password set via OPENCODE_SERVER_PASSWORD); an explicit --hostname
+#       override binds loopback only (unreachable from the host)
 #     - hardening (README "Hardening: keeping the agent scoped to
 #       /workspace"): default path works with --cap-drop=ALL,
 #       --security-opt=no-new-privileges, and --read-only + tmpfs; the
@@ -88,6 +89,10 @@ oc_serve_port=14096
 oc_override_port=14097
 oc_java_serve_port=14098
 oc_java_override_port=14099
+
+# Password for the v2 server: /api/info sits behind HTTP basic auth, so the
+# suite sets OPENCODE_SERVER_PASSWORD on `serve` runs and authenticates with it.
+serve_password=agent-box-test-pw
 
 # Must match ARG SHELLCHECK_VERSION in both Dockerfiles (v0.11.0 -> 0.11.0).
 # The upstream tool ships no Wolfi package, so its pin lives in the Dockerfile.
@@ -278,13 +283,21 @@ run_adaptation() {
     docker run --rm --user 0 -v "$2:$3:ro" "$1" --version 2>&1
 }
 
-# wait_health <url> — prints the body once the endpoint answers (<=30s).
+# wait_health <url> [user:pass] — prints the body once the endpoint answers
+# with HTTP 200 (<=30s). curl -w appends the status line to the body; a
+# non-2xx body (e.g. a 401 error document) must NOT count as "answered", or an
+# auth problem would surface later as a misleading version-mismatch failure.
 wait_health() {
-    local body
+    local url=$1 auth=${2:-} resp code
     for _ in $(seq 1 30); do
-        body=$(curl -s --max-time 2 "$1" 2>/dev/null)
-        if [ -n "$body" ]; then
-            printf '%s' "$body"
+        if [ -n "$auth" ]; then
+            resp=$(curl -s --max-time 2 -u "$auth" -w '\n%{http_code}' "$url" 2>/dev/null)
+        else
+            resp=$(curl -s --max-time 2 -w '\n%{http_code}' "$url" 2>/dev/null)
+        fi
+        code=${resp##*$'\n'}
+        if [ "$code" = 200 ]; then
+            printf '%s' "${resp%$'\n'*}"
             return 0
         fi
         sleep 1
@@ -293,21 +306,30 @@ wait_health() {
 }
 
 # test_serve <image> <label> <host-port> <expected-version>
+# v2 exposes server info (and health) at /api/info behind HTTP basic auth.
+# OPENCODE_SERVER_PASSWORD pins the password so the suite can call it; the
+# expected version is normalized (v2's --version prints "opencode vX.Y.Z").
+# Only the valid shape is stripped, so an unexpected --version output stays
+# verbatim and the assertion below fails with the raw string, not a mangled one.
 test_serve() {
     local image=$1 label=$2 port=$3 ver=$4 name health
+    case "$ver" in
+        opencode\ v[0-9]*.[0-9]*.[0-9]*) ver=${ver#opencode v} ;;
+    esac
     name="serve-$label-$run_id"
-    if ! docker run --rm -d -p "$port:4096" --name "$name" "$image" serve >/dev/null 2>&1; then
+    if ! docker run --rm -d -p "$port:4096" \
+        -e OPENCODE_SERVER_PASSWORD="$serve_password" \
+        --name "$name" "$image" serve >/dev/null 2>&1; then
         bad "$label: serve start" "docker run failed"
         return
     fi
     track "$name"
-    if health=$(wait_health "http://localhost:$port/global/health"); then
-        assert_contains "$label: serve health" "$health" '"healthy":true'
+    if health=$(wait_health "http://localhost:$port/api/info" "opencode:$serve_password"); then
         if [ -n "$ver" ]; then
             assert_contains "$label: serve reports installed version" "$health" "\"version\":\"$ver\""
         fi
     else
-        bad "$label: serve health" "no response on http://localhost:$port/global/health within 30s"
+        bad "$label: serve health" "no 2xx response from http://localhost:$port/api/info within 30s (server not up, or wrong credentials)"
     fi
     docker rm -f "$name" >/dev/null 2>&1
 }
@@ -317,9 +339,11 @@ test_serve() {
 # --hostname 0.0.0.0: reachable on loopback inside the container, unreachable
 # from the host through the published port.
 test_serve_override() {
-    local image=$1 label=$2 port=$3 name inside host_out
+    local image=$1 label=$2 port=$3 name resp inside host_out
     name="lb-$label-$run_id"
-    if ! docker run --rm -d -p "$port:$port" --name "$name" "$image" \
+    if ! docker run --rm -d -p "$port:$port" \
+        -e OPENCODE_SERVER_PASSWORD="$serve_password" \
+        --name "$name" "$image" \
         serve --port "$port" --hostname 127.0.0.1 >/dev/null 2>&1; then
         bad "$label: override start" "docker run failed"
         return
@@ -327,15 +351,18 @@ test_serve_override() {
     track "$name"
     inside=""
     for _ in $(seq 1 30); do
-        inside=$(docker exec "$name" curl -s --max-time 2 "http://127.0.0.1:$port/global/health" 2>/dev/null)
-        [ -n "$inside" ] && break
+        resp=$(docker exec "$name" curl -s --max-time 2 -u "opencode:$serve_password" -w '\n%{http_code}' "http://127.0.0.1:$port/api/info" 2>/dev/null)
+        if [ "${resp##*$'\n'}" = 200 ]; then
+            inside=${resp%$'\n'*}
+            break
+        fi
         sleep 1
     done
     if [ -z "$inside" ]; then
-        bad "$label: override binds loopback" "server never responded inside the container"
+        bad "$label: override binds loopback" "server never answered 2xx inside the container (not up, or wrong credentials)"
     else
         ok "$label: override binds loopback (reachable inside)"
-        host_out=$(curl -s --max-time 3 "http://localhost:$port/global/health" 2>/dev/null)
+        host_out=$(curl -s --max-time 3 -u "opencode:$serve_password" "http://localhost:$port/api/info" 2>/dev/null)
         if [ -z "$host_out" ]; then
             ok "$label: override unreachable from host"
         else
@@ -581,7 +608,7 @@ test_omp_default_identity() {
 test_opencode_default() {
     oc_ver=$(docker run --rm "$oc_image" --version 2>/dev/null)
     case "$oc_ver" in
-        [0-9]*.[0-9]*.[0-9]*) ok "opencode: default --version ($oc_ver)" ;;
+        opencode\ v[0-9]*.[0-9]*.[0-9]*) ok "opencode: default --version ($oc_ver)" ;;
         *) bad "opencode: default --version" "unexpected output: '$oc_ver'" ;;
     esac
 }
@@ -674,13 +701,13 @@ test_omp_nonroot_mounted_home() {
 # --- java (opencode base and omp base) --------------------------------------
 
 # check_version <test-name> <base> <version>
-# opencode prints "x.y.z"; omp prints "omp/x.y.z".
+# opencode v2 prints "opencode vX.Y.Z"; omp prints "omp/X.Y.Z".
 check_version() {
     local name=$1 base=$2 ver=$3
     case "$base" in
         opencode)
             case "$ver" in
-                [0-9]*.[0-9]*.[0-9]*) ok "$name ($ver)"; return ;;
+                opencode\ v[0-9]*.[0-9]*.[0-9]*) ok "$name ($ver)"; return ;;
             esac ;;
         omp)
             case "$ver" in

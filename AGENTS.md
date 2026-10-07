@@ -17,17 +17,20 @@ variant) in an isolated, minimal Wolfi container. They are intentionally tiny:
   this image as a base")
 - `README.md`, `LICENSE`, `.dockerignore` — docs and build hygiene
 
-There is no application code, no test suite, and no CI pipeline. Changes are
-almost always to the opencode/opencode.Dockerfile or entrypoint script.
+There is no application code. The executable artifacts are the Dockerfiles, the
+entrypoint scripts, and the image verification suite `tests/run-tests.sh` (run
+by CI in `.github/workflows/docker.yml`). Changes are almost always to the
+opencode/opencode.Dockerfile or entrypoint script.
 
 ## Pinned agent versions
 
-Currently pinned releases (bumped 2026-09-22):
+Currently, pinned releases (bumped 2026-10-07):
 
-- OpenCode `1.18.32` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
+- OpenCode `2.0.24` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
   (plain `x.y.z`, no `v` prefix; the installer is fed
-  `VERSION=${OPENCODE_VERSION}`).
-- omp `v18.2.8` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
+  `VERSION=${OPENCODE_VERSION}`). The installer URL is the V2 one,
+  `https://opencode.ai/v2/install`.
+- omp `v18.8.2` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
   prefix; passed to the installer as `--ref ${OMP_VERSION}`). The asymmetry
   is intentional: registry tags keep each ARG value exactly as-is (see
   `docs/image-naming.md`).
@@ -73,14 +76,15 @@ docker run --rm --user 0 -v /path/to/repo:/workspace agent-box-opencode:local --
 # write to ~/.config/opencode (e.g. `touch` a file there as the user).
 
 # 3. Serve path: the entrypoint injects --hostname 0.0.0.0 for the `serve`
-#    subcommand so a published port reaches the server. Confirm health, and
-#    that an explicit --hostname override is honored.
-docker run --rm -d -p 4096:4096 --name opencode-server agent-box-opencode:local serve
-curl -s http://localhost:4096/global/health   # {"healthy":true,"version":"..."}
-docker rm -f opencode-server   # opencode serve ignores SIGTERM/SIGINT; rm -f force-kills
+#    subcommand so a published port reaches the server. Confirm the server via
+#    /api/info (V2; HTTP basic auth with OPENCODE_SERVER_PASSWORD), and that
+#    an explicit --hostname override is honored.
+docker run --rm -d -p 4096:4096 -e OPENCODE_SERVER_PASSWORD=pw --name opencode-server agent-box-opencode:local serve
+curl -s -u opencode:pw http://localhost:4096/api/info   # {"version":"...","pid":...,...}
+docker rm -f opencode-server   # v2 serve stops on SIGTERM; rm -f is just cleanup
 # Override must bind loopback (unreachable from host via -p):
-docker run --rm -d -p 4097:4097 --name oc-lb agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
-curl -s --max-time 3 http://localhost:4097/global/health || echo unreachable-as-expected
+docker run --rm -d -p 4097:4097 -e OPENCODE_SERVER_PASSWORD=pw --name oc-lb agent-box-opencode:local serve --port 4097 --hostname 127.0.0.1
+curl -s --max-time 3 -u opencode:pw http://localhost:4097/api/info || echo unreachable-as-expected
 docker rm -f oc-lb
 
 # 4. Arbitrary-uid path (recommended over --user 0; see
@@ -166,7 +170,13 @@ Watch for silent regressions in:
   library would make the linking program a derivative work.
 - **opencode install path** — the installer writes to `$HOME/.opencode/bin`;
   the builder stage pins `ENV HOME=/root` so the `COPY --from=builder` path
-  is deterministic.
+  is deterministic. The V2 installer also writes an `opencode2` shim next to
+  the binary; only `opencode` is copied, so the image ships one version.
+- **V2 headless injection** — `opencode/opencode-entrypoint.sh` injects
+  `--hostname 0.0.0.0` for the `serve` subcommand only. V2 dropped the `web`
+  subcommand (the web UI is served by `serve`) and `acp` rejects `--hostname`
+  ("Unrecognized flag: --hostname in command opencode acp"), so neither may be
+  matched again.
 - **Home/config ownership** — the runtime home is `/home/agent-box`
   (keep `adduser -h`, `mkdir`/`chown`, `ENV HOME` in the opencode/opencode.Dockerfile and
   `home_dir` in the entrypoint in sync). The image owns the whole `$HOME`
