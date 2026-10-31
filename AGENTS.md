@@ -15,25 +15,41 @@ variant) in an isolated, minimal Wolfi container. They are intentionally tiny:
   box running the [omp](https://omp.sh) (Oh-My-Pi) agent instead of OpenCode
 - `java/java-25.Dockerfile` — worked example of a derived image (see "Extending
   this image as a base")
+- `scripts/check-latest-version.sh` — helper script that fetches the latest
+  OpenCode and omp release versions from GitHub
 - `README.md`, `LICENSE`, `.dockerignore` — docs and build hygiene
 
 There is no application code. The executable artifacts are the Dockerfiles, the
-entrypoint scripts, and the image verification suite `tests/run-tests.sh` (run
-by CI in `.github/workflows/docker.yml`). Changes are almost always to the
+entrypoint scripts, `scripts/check-latest-version.sh`, and the image
+verification suite `tests/run-tests.sh` (run by CI in
+`.github/workflows/docker.yml`). Changes are almost always to the
 opencode/opencode.Dockerfile or entrypoint script.
 
 ## Pinned agent versions
 
-Currently, pinned releases (bumped 2026-10-07):
+Currently, pinned releases (bumped 2026-10-30):
 
-- OpenCode `2.0.24` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
+- OpenCode `2.2.4` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
   (plain `x.y.z`, no `v` prefix; the installer is fed
   `VERSION=${OPENCODE_VERSION}`). The installer URL is the V2 one,
   `https://opencode.ai/v2/install`.
-- omp `v18.8.2` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
+- omp `v18.14.0` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
   prefix; passed to the installer as `--ref ${OMP_VERSION}`). The asymmetry
   is intentional: registry tags keep each ARG value exactly as-is (see
   `docs/image-naming.md`).
+
+When asked to update or bump OpenCode and/or omp versions without explicit
+version numbers, automatically retrieve the latest upstream versions first by
+running:
+
+```bash
+./scripts/check-latest-version.sh -a opencode
+./scripts/check-latest-version.sh -a omp
+```
+
+Both commands output plain `<x.y.z>` (no `v` prefix). Use the output directly
+for `opencode/opencode.Dockerfile` and `Makefile`, and prepend `v` (`v<x.y.z>`)
+for `ARG OMP_VERSION` and `ARG VERSION` in `omp/omp.Dockerfile`.
 
 A version bump MUST update every location carrying the number in one change:
 
