@@ -602,20 +602,6 @@ Three traps when reading those numbers:
   the arch with the number. Proof from the pinned ShellCheck v0.11.0 assets:
   16,213,136 bytes (x86_64) vs 55,043,352 bytes (aarch64), 3.4x apart.
 
-Snapshot of one build (arm64, `OPENCODE_VERSION=1.18.31`, measured 2026-09-17)
-so you know what to expect before you measure. Re-run the commands rather than
-quoting this table:
-
-| Layer | Size | Share |
-|-------|------|-------|
-| `opencode` binary (official installer) | 185 MB | ~48% |
-| `apk add` set (bash, git, openssh, setpriv, ripgrep, jq, yq, patch, diffutils, docker-cli) | 119 MB | ~31% |
-| `shellcheck` static binary | 55 MB | ~14% |
-| `fff-mcp` static binary | 10.8 MB | ~3% |
-| Wolfi base (`apko` layers) | ~15 MB | ~4% |
-| entrypoint, license texts, metadata | ~50 kB | ~0% |
-| **Total** | **384 MB** | |
-
 The omp variant is the same shape with a different agent binary. The
 `java/java-25.Dockerfile` worked example lands near 1 GB, and that cost is
 the JDK/mvnd/Python layer you add, not the base.

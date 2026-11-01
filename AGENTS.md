@@ -15,14 +15,15 @@ variant) in an isolated, minimal Wolfi container. They are intentionally tiny:
   box running the [omp](https://omp.sh) (Oh-My-Pi) agent instead of OpenCode
 - `java/java-25.Dockerfile` — worked example of a derived image (see "Extending
   this image as a base")
-- `scripts/check-latest-version.sh` — helper script that fetches the latest
-  OpenCode and omp release versions from GitHub
+- `scripts/update-versions.sh` — helper script that checks and deterministically
+  updates the pinned OpenCode and omp release versions across the repository
 - `README.md`, `LICENSE`, `.dockerignore` — docs and build hygiene
 
 There is no application code. The executable artifacts are the Dockerfiles, the
-entrypoint scripts, `scripts/check-latest-version.sh`, and the image
+entrypoint scripts, `scripts/update-versions.sh`, and the image
 verification suite `tests/run-tests.sh` (run by CI in
-`.github/workflows/docker.yml`). Changes are almost always to the
+`.github/workflows/docker.yml`, with weekly automated version-bump PRs in
+`.github/workflows/update-versions.yml`). Changes are almost always to the
 opencode/opencode.Dockerfile or entrypoint script.
 
 ## Pinned agent versions
@@ -38,18 +39,28 @@ Currently, pinned releases (bumped 2026-10-30):
   is intentional: registry tags keep each ARG value exactly as-is (see
   `docs/image-naming.md`).
 
-When asked to update or bump OpenCode and/or omp versions without explicit
-version numbers, automatically retrieve the latest upstream versions first by
-running:
+When asked to update or bump OpenCode and/or omp versions, run
+`scripts/update-versions.sh`, which deterministically updates every location
+below and verifies the result:
 
 ```bash
-./scripts/check-latest-version.sh -a opencode
-./scripts/check-latest-version.sh -a omp
+# Update both OpenCode and omp to the latest upstream releases:
+./scripts/update-versions.sh -u
+
+# Or update a single agent (optionally to an explicit <x.y.z> version):
+./scripts/update-versions.sh -u -a opencode
+./scripts/update-versions.sh -u -a omp
+./scripts/update-versions.sh -u -a opencode -v 2.2.4
+
+# Or only check the latest upstream versions without modifying files:
+./scripts/update-versions.sh -a opencode
+./scripts/update-versions.sh -a omp
+./scripts/update-versions.sh -a all
 ```
 
-Both commands output plain `<x.y.z>` (no `v` prefix). Use the output directly
-for `opencode/opencode.Dockerfile` and `Makefile`, and prepend `v` (`v<x.y.z>`)
-for `ARG OMP_VERSION` and `ARG VERSION` in `omp/omp.Dockerfile`.
+Check mode outputs plain `<x.y.z>` (no `v` prefix). Update mode (`-u`) writes
+plain `<x.y.z>` to `opencode/opencode.Dockerfile` and `Makefile`, and prepends
+`v` (`v<x.y.z>`) for `ARG OMP_VERSION` and `ARG VERSION` in `omp/omp.Dockerfile`.
 
 A version bump MUST update every location carrying the number in one change:
 
@@ -62,9 +73,6 @@ A version bump MUST update every location carrying the number in one change:
    reference to them in the derived java/graalvm build lines.
 4. This section — these pins are the documented record; update the versions
    and the bump date.
-5. `README.md` "How big is it?" — the dated size snapshot names the release
-   it measured; touch it only when actually re-measuring against a fresh
-   build, never by rewriting the version string of an old measurement.
 
 Keep the `ARG <NAME>_VERSION` lines line-initial and single-line: the CI
 publish job extracts them with `sed` (see "CI workflow parses the Dockerfile
@@ -272,19 +280,17 @@ Watch for silent regressions in:
   the container. See README.md "Passing tokens and secrets for skills/tools".
 - OCI label args (`VERSION`, `REVISION`) are for automation; do not hardcode
   build metadata into the opencode/opencode.Dockerfile.
-- Do not put a hardcoded image **size** figure back into `README.md`'s "Image
-  details" table — it goes stale with every agent release (it did twice). The
-  row points at "How big is it?", which publishes the `docker images` /
-  `docker history` commands instead. Keep it that way; a dated snapshot inside
-  that section must say which arch and release it measured.
+- Do not put a hardcoded image **size** figure or size breakdown table back
+  into `README.md` — it goes stale with every agent release. The "Image
+  details" row points at "How big is it?", which publishes the `docker images` /
+  `docker history` commands instead. Keep it that way.
 - Do not hardcode a release tag (`agent-box:<x.y.z>`,
   `agent-box:v<x.y.z>`) in `README.md` or this file. It goes stale on every
   `OPENCODE_VERSION`/`OMP_VERSION` bump and fails silently (the old tag stays
   pullable). Use the stable local tags `tests/run-tests.sh` consumes
   (`agent-box-opencode:local`, `agent-box-omp:local`,
   `agent-box-opencode-java:local`, `agent-box-omp-java:local`) or an
-  `<x.y.z>` placeholder in "pin a different release" examples. A dated,
-  release-labelled snapshot in "How big is it?" is the one allowed exception.
+  `<x.y.z>` placeholder in "pin a different release" examples.
 - Comments in the opencode/opencode.Dockerfile explain *why*, not *what*; keep them when
   editing.
 - After changes, update `README.md` (image details, usage) if behavior,
