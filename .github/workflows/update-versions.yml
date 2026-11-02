@@ -1,0 +1,135 @@
+# Weekly automated version bump for OpenCode and omp (Dependabot-style).
+#
+# Runs once per week (and on manual workflow_dispatch):
+#   1. Runs `scripts/update-versions.sh -u` to deterministically update
+#      OpenCode and/or omp pins across Dockerfiles, Makefile, and AGENTS.md.
+#   2. If nothing changed, exits cleanly without opening a PR.
+#   3. If versions changed, creates or updates a single Pull Request on a
+#      version-stamped branch (`chore/update-agent-versions-<oc>-<omp>`),
+#      auto-closes any superseded open `chore/update-agent-versions-*` PRs,
+#      and triggers the full `tests/run-tests.sh` verification suite via
+#      `docker.yml`.
+#
+# Required repository secret (Settings > Secrets and variables > Actions):
+#   PR_TOKEN — Fine-grained PAT scoped to this repository with `Contents: Read
+#              and write` and `Pull requests: Read and write` permissions so
+#              pushing the branch and opening the PR automatically triggers
+#              `pull_request` CI workflows (`docker.yml`). Falls back to
+#              `GITHUB_TOKEN` if unset (requires "Allow GitHub Actions to create
+#              and approve pull requests" in Settings > Actions > General).
+
+name: Update Agent Versions
+
+on:
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Check and open PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.PR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Check and update versions
+        id: bump
+        run: |
+          before_oc=$(sed -n 's/^ARG OPENCODE_VERSION=//p' opencode/opencode.Dockerfile)
+          before_omp=$(sed -n 's/^ARG OMP_VERSION=//p' omp/omp.Dockerfile)
+
+          ./scripts/update-versions.sh -u
+
+          after_oc=$(sed -n 's/^ARG OPENCODE_VERSION=//p' opencode/opencode.Dockerfile)
+          after_omp=$(sed -n 's/^ARG OMP_VERSION=//p' omp/omp.Dockerfile)
+
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "changed=true"
+            echo "before_oc=$before_oc"
+            echo "after_oc=$after_oc"
+            echo "before_omp=$before_omp"
+            echo "after_omp=$after_omp"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update Pull Request
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PR_TOKEN || secrets.GITHUB_TOKEN }}
+          BEFORE_OC: ${{ steps.bump.outputs.before_oc }}
+          AFTER_OC: ${{ steps.bump.outputs.after_oc }}
+          BEFORE_OMP: ${{ steps.bump.outputs.before_omp }}
+          AFTER_OMP: ${{ steps.bump.outputs.after_omp }}
+        run: |
+          branch="chore/update-agent-versions-${AFTER_OC}-${AFTER_OMP}"
+
+          parts=()
+          body_lines=()
+          if [ "$BEFORE_OC" != "$AFTER_OC" ]; then
+            parts+=("OpenCode to ${AFTER_OC}")
+            body_lines+=("- **OpenCode**: \`${BEFORE_OC}\` -> \`${AFTER_OC}\` (https://github.com/anomalyco/opencode/releases/tag/v${AFTER_OC})")
+          fi
+          if [ "$BEFORE_OMP" != "$AFTER_OMP" ]; then
+            parts+=("omp to ${AFTER_OMP}")
+            body_lines+=("- **omp**: \`${BEFORE_OMP}\` -> \`${AFTER_OMP}\` (https://github.com/can1357/oh-my-pi/releases/tag/${AFTER_OMP})")
+          fi
+
+          if [ "${#parts[@]}" -eq 2 ]; then
+            title="chore: bump ${parts[0]} and ${parts[1]}"
+          else
+            title="chore: bump ${parts[0]}"
+          fi
+
+          body_file=$(mktemp)
+          {
+            printf 'Automated weekly agent version update.\n\n'
+            printf '### Updated versions\n'
+            for line in "${body_lines[@]}"; do
+              printf '%s\n' "$line"
+            done
+          } > "$body_file"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$branch"
+          git add opencode/opencode.Dockerfile omp/omp.Dockerfile Makefile AGENTS.md
+          git commit -m "$title"
+          git push --force origin "$branch"
+
+          existing_pr=$(gh pr list --head "$branch" --base master --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --title "$title" --body-file "$body_file"
+            new_pr_url=$(gh pr view "$existing_pr" --json url --jq '.url')
+          else
+            new_pr_url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body_file")
+          fi
+          rm -f "$body_file"
+
+          superseded_prs=$(
+            gh pr list \
+              --base master \
+              --state open \
+              --json number,headRefName \
+              --jq ".[] | select((.headRefName | startswith(\"chore/update-agent-versions-\")) and .headRefName != \"${branch}\") | .number"
+          )
+          for old_pr in $superseded_prs; do
+            gh pr close "$old_pr" --delete-branch --comment "Superseded by ${new_pr_url}"
+          done

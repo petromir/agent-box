@@ -592,9 +592,9 @@ docker history --format '{{.Size}}  {{.CreatedBy}}' agent-box-opencode:local | h
 Three traps when reading those numbers:
 
 - **Units**: `docker images` and `docker history` print decimal MB
-  (1000-based). The same image is `384MB` there and 367 MiB if you divide
-  `docker image inspect --format '{{.Size}}'` bytes by 1048576. Never mix the
-  two in one sentence.
+  (1000-based), whereas dividing `docker image inspect --format '{{.Size}}'`
+  bytes by 1,048,576 gives binary MiB (roughly 4.6% smaller for the same byte
+  count). Never mix the two in one sentence.
 - **Registries compress each layer**, so a pull is much cheaper than the on-disk
   figure: ShellCheck's 55 MB arm64 layer transfers
   about 12 MB, and its 16 MB x86_64 counterpart about 4 MB.
