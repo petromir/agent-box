@@ -28,13 +28,13 @@ opencode/opencode.Dockerfile or entrypoint script.
 
 ## Pinned agent versions
 
-Currently, pinned releases (bumped 2026-10-30):
+Currently, pinned releases (bumped 2026-11-02):
 
-- OpenCode `2.2.4` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
+- OpenCode `2.2.5` — `ARG OPENCODE_VERSION` in `opencode/opencode.Dockerfile`
   (plain `x.y.z`, no `v` prefix; the installer is fed
   `VERSION=${OPENCODE_VERSION}`). The installer URL is the V2 one,
   `https://opencode.ai/v2/install`.
-- omp `v18.14.0` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
+- omp `v18.15.0` — `ARG OMP_VERSION` in `omp/omp.Dockerfile` (keeps the `v`
   prefix; passed to the installer as `--ref ${OMP_VERSION}`). The asymmetry
   is intentional: registry tags keep each ARG value exactly as-is (see
   `docs/image-naming.md`).
